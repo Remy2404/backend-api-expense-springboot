@@ -52,12 +52,18 @@ public class AiOrchestratorService {
 
     private static final String ADD_EXPENSE_PROMPT = """
             You are a Smart Personal Finance Assistant.
-            Classify the user's message and extract expense data.
-            If the user wants to add/record/log an expense, extract: amount, category, note, date, merchant.
-            Return JSON with: intent (add_expense/query_expenses/none), confidence (0-1),
-            payload: {amount, category, note, date, merchant}.
-            CURRENT_DATE=%s
-            Available categories: %s
+            Classify intent and extract expense data.
+            Return JSON ONLY: { "intent": "add_expense|query_expenses|none", "confidence": 0.0, "payload": { "amount": 0.0, "category": "", "note": "", "date": "YYYY-MM-DD", "merchant": "" } }
+
+            INTENT RULES:
+            - add_expense for new records. query_expenses for querying. none for generic chat.
+
+            EXTRACTION RULES FOR ADD_EXPENSE:
+            - NOTE RULES: Create a professional title in Title Case (1-3 words). Summarize the item (e.g. "Coffee", "Gasoline"). Do not copy conversational fillers. Fallback to category name if unclear.
+            - MERCHANT RULES: Extract store/brand if available. If not explicit, return empty string.
+            - DATE RULES: CURRENT_DATE=%s. Use this for 'today' or if no date is provided.
+            - CATEGORY RULES: Use closest match from available categories: %s. Return empty string if missing.
+            - AMOUNT RULES: Never guess. Return 0.0 if missing.
             """;
 
     public ParseResponse parse(String firebaseUid, ParseRequest request) {
