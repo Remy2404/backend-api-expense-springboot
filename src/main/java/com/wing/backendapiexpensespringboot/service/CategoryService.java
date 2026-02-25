@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -32,6 +33,7 @@ public class CategoryService {
                 .name(name)
                 .icon(icon)
                 .color(color)
+                .createdAt(LocalDateTime.now())
                 .build();
         return categoryRepository.save(category);
     }

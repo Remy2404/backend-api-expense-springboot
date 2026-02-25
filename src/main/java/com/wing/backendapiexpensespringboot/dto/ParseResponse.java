@@ -19,6 +19,7 @@ public class ParseResponse {
     private String merchant;
     private LocalDate date;
     private String note;
+    private String noteSummary;
     private String suggestedCategoryId;
 
     @Builder.Default

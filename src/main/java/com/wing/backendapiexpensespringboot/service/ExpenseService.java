@@ -44,6 +44,7 @@ public class ExpenseService {
                 .merchant((String) data.get("merchant"))
                 .date((LocalDate) data.getOrDefault("date", LocalDate.now()))
                 .note((String) data.get("note"))
+                .noteSummary((String) data.get("noteSummary"))
                 .categoryId((UUID) data.get("categoryId"))
                 .createdAt(LocalDateTime.now())
                 .build();

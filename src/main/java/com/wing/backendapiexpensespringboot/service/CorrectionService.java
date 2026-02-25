@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -19,7 +20,7 @@ public class CorrectionService {
 
     @Transactional
     public CorrectionEntity insertCorrection(String firebaseUid, UUID expenseId, UUID originalCategoryId,
-                                              UUID correctedCategoryId, Double originalAmount, Double correctedAmount,
+                                              UUID correctedCategoryId, BigDecimal originalAmount, Double correctedAmount,
                                               String originalMerchant, String correctedMerchant) {
         CorrectionEntity correction = CorrectionEntity.builder()
                 .firebaseUid(firebaseUid)

@@ -40,6 +40,9 @@ public class ExpenseEntity {
     @Column(name = "note")
     private String note;
 
+    @Column(name = "note_summary")
+    private String noteSummary;
+
     @Column(name = "category_id")
     private UUID categoryId;
 

@@ -53,13 +53,14 @@ public class AiOrchestratorService {
     private static final String ADD_EXPENSE_PROMPT = """
             You are a Smart Personal Finance Assistant.
             Classify intent and extract expense data.
-            Return JSON ONLY: { "intent": "add_expense|query_expenses|none", "confidence": 0.0, "payload": { "amount": 0.0, "category": "", "note": "", "date": "YYYY-MM-DD", "merchant": "" } }
+            Return JSON ONLY: { "intent": "add_expense|query_expenses|none", "confidence": 0.0, "payload": { "amount": 0.0, "category": "", "note": "", "noteSummary": "", "date": "YYYY-MM-DD", "merchant": "" } }
 
             INTENT RULES:
             - add_expense for new records. query_expenses for querying. none for generic chat.
 
             EXTRACTION RULES FOR ADD_EXPENSE:
             - NOTE RULES: Create a professional title in Title Case (1-3 words). Summarize the item (e.g. "Coffee", "Gasoline"). Do not copy conversational fillers. Fallback to category name if unclear.
+            - NOTE_SUMMARY RULES: Create a brief summary of the expense (5-15 words). Include relevant details like who, what, where context. E.g. "Morning coffee at Starbucks with colleague", "Weekly groceries shopping at Walmart", "Gas refill at Shell station". Make it descriptive.
             - MERCHANT RULES: Extract store/brand if available. If not explicit, return empty string.
             - DATE RULES: CURRENT_DATE=%s. Use this for 'today' or if no date is provided.
             - CATEGORY RULES: Use closest match from available categories: %s. Return empty string if missing.
@@ -75,17 +76,44 @@ public class AiOrchestratorService {
         String merchant = null;
         String suggestedCategoryId = null;
 
+        // Get user's categories for the prompt
+        List<CategoryEntity> categories = categoryService.getCategories(firebaseUid);
+        String categoryList = categories.stream()
+                .map(CategoryEntity::getName)
+                .collect(Collectors.joining(", "));
+
+        // Build a prompt that includes available categories
+        String parsePromptWithCategories = String.format(
+                "You are an expense parser. Parse the following text and extract expense information.\n" +
+                "Return JSON with: amount (number), currency (string), merchant (string), date (YYYY-MM-DD), note (string), noteSummary (string), category (string).\n" +
+                "If you cannot determine a value, use null.\n" +
+                "- note: A professional title in Title Case (1-3 words). E.g. 'Coffee', 'Groceries', 'Gasoline'.\n" +
+                "- noteSummary: A brief summary (5-15 words) with relevant details like who, what, where. E.g. 'Morning coffee at Starbucks with colleague', 'Weekly groceries shopping at Walmart'.\n" +
+                "Available categories: %s. If the expense doesn't match any category, create a new category name (e.g., 'Drink', 'Snack').",
+                categoryList);
+
         try {
-            String response = openRouterService.chat(PARSE_PROMPT, request.getRawText());
+            String response = openRouterService.chat(parsePromptWithCategories, request.getRawText());
             Map<String, Object> parsed = parseJsonResponse(response);
 
             merchant = (String) parsed.get("merchant");
+            String parsedCategory = (String) parsed.get("category");
+            String noteSummary = (String) parsed.get("noteSummary");
 
+            // First check memory for merchant-based category
             if (merchant != null && !merchant.isEmpty()) {
                 Optional<MemoryEntity> memory = memoryService.getByMerchant(firebaseUid, merchant);
                 if (memory.isPresent() && memory.get().getResolvedCategoryId() != null) {
                     suggestedCategoryId = memory.get().getResolvedCategoryId().toString();
                     source = "memory";
+                }
+            }
+
+            // If no memory match, try to resolve or create category from AI response
+            if (suggestedCategoryId == null && parsedCategory != null && !parsedCategory.isEmpty()) {
+                CategoryEntity categoryEntity = resolveOrCreateCategory(firebaseUid, parsedCategory, categories);
+                if (categoryEntity != null) {
+                    suggestedCategoryId = categoryEntity.getId().toString();
                 }
             }
 
@@ -95,12 +123,23 @@ public class AiOrchestratorService {
                 confidence = Math.max(confidence, 0.95);
             }
 
+            // Safely parse date - check if key exists AND value is not null
+            LocalDate parsedDate = null;
+            if (parsed.containsKey("date") && parsed.get("date") != null) {
+                try {
+                    parsedDate = LocalDate.parse((String) parsed.get("date"));
+                } catch (Exception e) {
+                    parsedDate = null;
+                }
+            }
+
             ParseResponse parseResponse = ParseResponse.builder()
                     .amount(parsed.containsKey("amount") ? ((Number) parsed.get("amount")).doubleValue() : null)
                     .currency((String) parsed.getOrDefault("currency", preferredCurrency))
                     .merchant(merchant)
-                    .date(parsed.containsKey("date") ? LocalDate.parse((String) parsed.get("date")) : LocalDate.now())
+                    .date(parsedDate != null ? parsedDate : LocalDate.now())
                     .note((String) parsed.get("note"))
+                    .noteSummary(noteSummary)
                     .suggestedCategoryId(suggestedCategoryId)
                     .confidence(confidence)
                     .source(source)
@@ -192,8 +231,12 @@ public class AiOrchestratorService {
     public CorrectResponse correct(String firebaseUid, CorrectRequest request) {
         log.info("Processing correction for user: {}", firebaseUid);
 
+        // Convert BigDecimal to Double for legacy services
+        Double originalAmount = request.getOriginalAmount() != null ? request.getOriginalAmount().doubleValue() : null;
+        Double correctedAmount = request.getCorrectedAmount() != null ? request.getCorrectedAmount().doubleValue() : null;
+
         safetyValidatorService.enforceNoSilentAmountChange(
-                request.getOriginalAmount(), request.getCorrectedAmount(), request.getConfirmAmountChange());
+                originalAmount, correctedAmount, request.getConfirmAmountChange());
 
         if (request.getExpenseId() != null) {
             correctionService.insertCorrection(
@@ -202,7 +245,7 @@ public class AiOrchestratorService {
                     request.getOriginalCategoryId(),
                     request.getCorrectedCategoryId(),
                     request.getOriginalAmount(),
-                    request.getCorrectedAmount(),
+                    correctedAmount,
                     request.getOriginalMerchant(),
                     request.getCorrectedMerchant());
         }
@@ -323,16 +366,20 @@ public class AiOrchestratorService {
                     : null;
             String category = (String) payload.getOrDefault("category", "");
             String note = (String) payload.getOrDefault("note", "");
+            String noteSummary = (String) payload.getOrDefault("noteSummary", "");
             String date = (String) payload.getOrDefault("date", localToday);
             String merchant = (String) payload.getOrDefault("merchant", "");
 
             // Resolve category name against user's actual categories
-            String resolvedCategory = resolveCategory(category, categories);
+            // If no match found, create a new category
+            CategoryEntity resolvedCategoryEntity = resolveOrCreateCategory(firebaseUid, category, categories);
 
             ChatActionPayload actionPayload = ChatActionPayload.builder()
                     .amount(amount != null && amount > 0 ? amount : null)
-                    .category(resolvedCategory)
+                    .category(resolvedCategoryEntity != null ? resolvedCategoryEntity.getName() : null)
+                    .categoryId(resolvedCategoryEntity != null ? resolvedCategoryEntity.getId().toString() : null)
                     .note(note != null && !note.isEmpty() ? note : null)
+                    .noteSummary(noteSummary != null && !noteSummary.isEmpty() ? noteSummary : null)
                     .date(date != null && !date.isEmpty() ? date : localToday)
                     .merchant(merchant != null && !merchant.isEmpty() ? merchant : null)
                     .build();
@@ -446,6 +493,41 @@ public class AiOrchestratorService {
             }
         }
         return null;
+    }
+
+    private CategoryEntity resolveOrCreateCategory(String firebaseUid, String requested, List<CategoryEntity> categories) {
+        if (requested == null || requested.isEmpty())
+            return null;
+
+        String lower = requested.toLowerCase().trim();
+
+        // First try to resolve existing category
+        for (CategoryEntity c : categories) {
+            if (c.getName().equalsIgnoreCase(lower)) {
+                return c;
+            }
+        }
+        // Partial match
+        for (CategoryEntity c : categories) {
+            if (c.getName().toLowerCase().contains(lower) || lower.contains(c.getName().toLowerCase())) {
+                return c;
+            }
+        }
+
+        // If no match found, create a new category
+        try {
+            log.info("Creating new category '{}' for user {}", requested, firebaseUid);
+            CategoryEntity newCategory = categoryService.createCategory(
+                    firebaseUid,
+                    requested.trim(),
+                    "tag",  // default icon
+                    "#6366F1" // default color (indigo)
+            );
+            return newCategory;
+        } catch (Exception e) {
+            log.error("Error creating category '{}': {}", requested, e.getMessage());
+            return null;
+        }
     }
 
     private Map<String, Object> parseJsonResponse(String response) {

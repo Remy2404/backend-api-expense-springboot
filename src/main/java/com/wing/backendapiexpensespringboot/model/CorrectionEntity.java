@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -34,7 +35,7 @@ public class CorrectionEntity {
     private UUID correctedCategoryId;
 
     @Column(name = "original_amount")
-    private Double originalAmount;
+    private BigDecimal originalAmount;
 
     @Column(name = "corrected_amount")
     private Double correctedAmount;

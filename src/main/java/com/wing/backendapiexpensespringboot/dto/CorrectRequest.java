@@ -7,6 +7,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 @Data
@@ -25,8 +26,8 @@ public class CorrectRequest {
     @Size(min = 1, max = 255, message = "merchant must be between 1 and 255 characters")
     private String merchant;
 
-    private Double originalAmount;
-    private Double correctedAmount;
+    private BigDecimal originalAmount;
+    private BigDecimal correctedAmount;
     private String originalMerchant;
     private String correctedMerchant;
 
