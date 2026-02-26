@@ -4,6 +4,7 @@ import com.wing.backendapiexpensespringboot.model.MemoryEntity;
 import com.wing.backendapiexpensespringboot.repository.MemoryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,17 +20,34 @@ public class MemoryService {
     private final MemoryRepository memoryRepository;
 
     public Optional<MemoryEntity> getByMerchant(String firebaseUid, String merchant) {
-        return memoryRepository.findByFirebaseUidAndMerchantIgnoreCase(firebaseUid, merchant);
+        try {
+            return memoryRepository.findByFirebaseUidAndMerchantIgnoreCase(firebaseUid, merchant);
+        } catch (DataAccessException exception) {
+            log.warn("Memory lookup failed for merchant '{}' and user '{}': {}", merchant, firebaseUid, exception.getMessage());
+            return Optional.empty();
+        }
     }
 
     public Optional<MemoryEntity> getByCategory(String firebaseUid, UUID categoryId) {
-        return memoryRepository.findByFirebaseUidAndResolvedCategoryId(firebaseUid, categoryId)
-                .stream().findFirst();
+        try {
+            return memoryRepository.findByFirebaseUidAndResolvedCategoryId(firebaseUid, categoryId)
+                    .stream()
+                    .findFirst();
+        } catch (DataAccessException exception) {
+            log.warn("Memory lookup failed for category '{}' and user '{}': {}", categoryId, firebaseUid, exception.getMessage());
+            return Optional.empty();
+        }
     }
 
     @Transactional
     public int applyCorrection(String firebaseUid, String merchant, UUID correctedCategoryId) {
-        Optional<MemoryEntity> existing = memoryRepository.findByFirebaseUidAndMerchantIgnoreCase(firebaseUid, merchant);
+        Optional<MemoryEntity> existing;
+        try {
+            existing = memoryRepository.findByFirebaseUidAndMerchantIgnoreCase(firebaseUid, merchant);
+        } catch (DataAccessException exception) {
+            log.warn("Skipping memory correction persistence for merchant '{}' and user '{}': {}", merchant, firebaseUid, exception.getMessage());
+            return 0;
+        }
 
         if (existing.isPresent()) {
             MemoryEntity memory = existing.get();

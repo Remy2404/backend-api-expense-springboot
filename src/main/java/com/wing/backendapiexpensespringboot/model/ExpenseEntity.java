@@ -37,7 +37,7 @@ public class ExpenseEntity {
     @Column(name = "date", nullable = false)
     private LocalDate date;
 
-    @Column(name = "note")
+    @Column(name = "notes")
     private String note;
 
     @Column(name = "note_summary")
