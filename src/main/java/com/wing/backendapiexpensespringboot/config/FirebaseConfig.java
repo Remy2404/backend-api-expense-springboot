@@ -10,17 +10,14 @@ import org.springframework.context.annotation.Configuration;
 public class FirebaseConfig {
 
     private String projectId;
-    private String audience;
-    private String apiKey;
-
-    public String getEffectiveAudience() {
-        return audience != null ? audience : projectId;
-    }
-
-    public String getVerificationApiKey() {
-        if (apiKey != null && !apiKey.isBlank()) {
-            return apiKey;
-        }
-        return projectId;
-    }
+    /**
+     * Optional absolute/relative file path to Firebase service account JSON.
+     * Recommended for local development.
+     */
+    private String serviceAccountPath;
+    /**
+     * Optional raw JSON (or base64-encoded JSON) service account credential.
+     * Recommended for container/CI environments.
+     */
+    private String serviceAccountJson;
 }
