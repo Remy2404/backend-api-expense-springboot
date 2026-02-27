@@ -1,24 +1,24 @@
 package com.wing.backendapiexpensespringboot.security;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.wing.backendapiexpensespringboot.config.FirebaseConfig;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseAuthException;
+import com.google.firebase.auth.FirebaseToken;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.*;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestTemplate;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -27,122 +27,123 @@ import java.util.concurrent.atomic.AtomicInteger;
 @RequiredArgsConstructor
 public class FirebaseAuthFilter extends OncePerRequestFilter {
 
-    private final FirebaseConfig firebaseConfig;
-    private final RestTemplate restTemplate;
-    private final ObjectMapper objectMapper;
+    private static final Set<String> PUBLIC_ENDPOINT_SUFFIXES = Set.of("/health", "/actuator/health");
 
-    private static final Map<String, AtomicInteger> rateLimitMap = new ConcurrentHashMap<>();
+    private static final long RATE_LIMIT_WINDOW_MS = 60_000L;
     private static final int MAX_REQUESTS_PER_MINUTE = 60;
 
+    private final FirebaseAuth firebaseAuth;
+    private final ObjectMapper objectMapper;
+    private final ObjectProvider<RoleLookupService> roleLookupServiceProvider;
+
+    private static final Map<String, RateLimitWindow> rateLimitMap = new ConcurrentHashMap<>();
+
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
-                                    FilterChain filterChain) throws ServletException, IOException {
+    protected void doFilterInternal(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            FilterChain filterChain
+    ) throws ServletException, IOException {
 
         String path = request.getRequestURI();
-
-        // Skip authentication for health endpoint
-        if (path.equals("/health") || path.equals("/actuator/health")) {
+        if (isPublicEndpoint(path)) {
             filterChain.doFilter(request, response);
             return;
         }
 
         String authHeader = request.getHeader("Authorization");
-
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.setContentType("application/json");
-            response.getWriter().write("{\"detail\": \"Missing or invalid Authorization header\"}");
+            writeUnauthorized(response, "Missing or invalid Authorization header");
             return;
         }
 
-        String token = authHeader.substring(7).trim();
-
-        // Rate limiting
-        if (!checkRateLimit(token)) {
+        String idToken = authHeader.substring(7).trim();
+        if (!checkRateLimit(idToken)) {
             response.setStatus(429);
-            response.setContentType("application/json");
-            response.getWriter().write("{\"detail\": \"Rate limit exceeded. Please retry in a moment.\"}");
+            writeJson(response, Map.of("detail", "Rate limit exceeded. Please retry in a moment."));
             return;
         }
 
         try {
-            UserPrincipal user = verifyFirebaseToken(token);
+            FirebaseToken decodedToken = firebaseAuth.verifyIdToken(idToken, true);
+            UserPrincipal user = toPrincipal(decodedToken, idToken);
+
             request.setAttribute("userPrincipal", user);
             UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken(user, token, AuthorityUtils.NO_AUTHORITIES);
+                    new UsernamePasswordAuthenticationToken(user, idToken, user.getAuthorities());
             SecurityContextHolder.getContext().setAuthentication(authentication);
+
             filterChain.doFilter(request, response);
-        } catch (Exception e) {
+        } catch (FirebaseAuthException e) {
             log.warn("Firebase token verification failed: {}", e.getMessage());
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.setContentType("application/json");
-            response.getWriter().write("{\"detail\": \"Invalid or expired Firebase token.\"}");
+            writeUnauthorized(response, "Invalid or expired Firebase token.");
+        } catch (Exception e) {
+            log.error("Unexpected authentication failure", e);
+            writeUnauthorized(response, "Authentication failed.");
         }
     }
 
-    private UserPrincipal verifyFirebaseToken(String token) throws Exception {
-        try {
-            String verificationApiKey = firebaseConfig.getVerificationApiKey();
-            if (verificationApiKey == null || verificationApiKey.isBlank()) {
-                throw new Exception("Firebase API key is not configured");
-            }
-
-            // Firebase ID token verification endpoint
-            String url = "https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=" + verificationApiKey;
-
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-
-            String requestBody = "{\"idToken\": \"" + token + "\"}";
-            HttpEntity<String> entity = new HttpEntity<>(requestBody, headers);
-
-            ResponseEntity<String> response = restTemplate.exchange(
-                    url,
-                    HttpMethod.POST,
-                    entity,
-                    String.class
-            );
-
-            JsonNode root = objectMapper.readTree(response.getBody());
-            JsonNode users = root.get("users");
-
-            if (users == null || !users.isArray() || users.isEmpty()) {
-                throw new Exception("Invalid token - no user found");
-            }
-
-            JsonNode userNode = users.get(0);
-            String firebaseUid = userNode.get("localId").asText();
-
-            if (firebaseUid == null || firebaseUid.isEmpty()) {
-                throw new Exception("Token missing user identity");
-            }
-
-            return UserPrincipal.builder()
-                    .firebaseUid(firebaseUid)
-                    .token(token)
-                    .build();
-
-        } catch (Exception e) {
-            log.error("Error verifying Firebase token: ", e);
-            throw new Exception("Failed to verify token: " + e.getMessage());
+    private UserPrincipal toPrincipal(FirebaseToken decodedToken, String rawToken) {
+        String firebaseUid = decodedToken.getUid();
+        if (firebaseUid == null || firebaseUid.isBlank()) {
+            throw new IllegalArgumentException("Token missing user identity");
         }
+
+        Map<String, Object> claims = decodedToken.getClaims();
+        AppRole role = resolveRole(firebaseUid, claims);
+
+        return UserPrincipal.builder()
+                .firebaseUid(firebaseUid)
+                .email(decodedToken.getEmail())
+                .role(role.name())
+                .token(rawToken)
+                .claims(claims)
+                .build();
+    }
+
+    private AppRole resolveRole(String firebaseUid, Map<String, Object> claims) {
+        if (claims != null && claims.containsKey("role")) {
+            return AppRole.from(claims.get("role"));
+        }
+
+        RoleLookupService lookupService = roleLookupServiceProvider.getIfAvailable();
+        if (lookupService != null) {
+            return lookupService.findRoleByFirebaseUid(firebaseUid)
+                    .map(AppRole::from)
+                    .orElse(AppRole.USER);
+        }
+
+        return AppRole.USER;
+    }
+
+    private void writeUnauthorized(HttpServletResponse response, String detail) throws IOException {
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        writeJson(response, Map.of("detail", detail));
+    }
+
+    private void writeJson(HttpServletResponse response, Map<String, String> body) throws IOException {
+        response.setContentType("application/json");
+        response.getWriter().write(objectMapper.writeValueAsString(body));
+    }
+
+    private boolean isPublicEndpoint(String path) {
+        return PUBLIC_ENDPOINT_SUFFIXES.stream().anyMatch(path::endsWith);
     }
 
     private boolean checkRateLimit(String key) {
-        rateLimitMap.compute(key, (k, counter) -> {
-            if (counter == null) {
-                return new AtomicInteger(1);
+        long now = System.currentTimeMillis();
+        RateLimitWindow window = rateLimitMap.compute(key, (k, current) -> {
+            if (current == null || now - current.windowStartMillis >= RATE_LIMIT_WINDOW_MS) {
+                return new RateLimitWindow(now, new AtomicInteger(1));
             }
 
-            if (counter.get() >= MAX_REQUESTS_PER_MINUTE) {
-                return counter;
-            }
-
-            counter.incrementAndGet();
-            return counter;
+            current.counter.incrementAndGet();
+            return current;
         });
 
-        AtomicInteger counter = rateLimitMap.get(key);
-        return counter.get() <= MAX_REQUESTS_PER_MINUTE;
+        return window.counter.get() <= MAX_REQUESTS_PER_MINUTE;
+    }
+
+    private record RateLimitWindow(long windowStartMillis, AtomicInteger counter) {
     }
 }
