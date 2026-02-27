@@ -14,8 +14,19 @@ public class SavingsGoalQueryService {
 
     private final SavingsGoalRepository savingsGoalRepository;
 
-    public List<SavingsGoalDto> getGoals(String firebaseUid) {
-        return savingsGoalRepository.findActiveByFirebaseUidOrderByCreatedAtDesc(firebaseUid)
+    public List<SavingsGoalDto> getGoals(
+            String firebaseUid,
+            int offset,
+            int limit,
+            boolean includeArchived
+    ) {
+        QueryPagination.validate(offset, limit);
+
+        List<SavingsGoalEntity> goals = includeArchived
+                ? savingsGoalRepository.findAllByFirebaseUidOrderByCreatedAtDesc(firebaseUid)
+                : savingsGoalRepository.findActiveByFirebaseUidOrderByCreatedAtDesc(firebaseUid);
+
+        return QueryPagination.slice(goals, offset, limit)
                 .stream()
                 .map(this::toDto)
                 .toList();

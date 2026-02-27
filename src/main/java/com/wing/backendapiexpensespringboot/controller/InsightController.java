@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -21,8 +22,12 @@ public class InsightController {
     private final InsightQueryService insightQueryService;
 
     @GetMapping
-    public ResponseEntity<List<InsightDto>> listInsights(@AuthenticationPrincipal UserPrincipal user) {
-        return ResponseEntity.ok(insightQueryService.getInsights(requireFirebaseUid(user)));
+    public ResponseEntity<List<InsightDto>> listInsights(
+            @AuthenticationPrincipal UserPrincipal user,
+            @RequestParam(defaultValue = "0") int offset,
+            @RequestParam(defaultValue = "50") int limit
+    ) {
+        return ResponseEntity.ok(insightQueryService.getInsights(requireFirebaseUid(user), offset, limit));
     }
 
     private String requireFirebaseUid(UserPrincipal user) {

@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -22,8 +23,19 @@ public class RecurringExpenseController {
 
     @GetMapping
     public ResponseEntity<List<RecurringExpenseDto>> listRecurringExpenses(
-            @AuthenticationPrincipal UserPrincipal user) {
-        return ResponseEntity.ok(recurringExpenseQueryService.getRecurringExpenses(requireFirebaseUid(user)));
+            @AuthenticationPrincipal UserPrincipal user,
+            @RequestParam(defaultValue = "0") int offset,
+            @RequestParam(defaultValue = "50") int limit,
+            @RequestParam(defaultValue = "false") boolean includeArchived
+    ) {
+        return ResponseEntity.ok(
+                recurringExpenseQueryService.getRecurringExpenses(
+                        requireFirebaseUid(user),
+                        offset,
+                        limit,
+                        includeArchived
+                )
+        );
     }
 
     private String requireFirebaseUid(UserPrincipal user) {

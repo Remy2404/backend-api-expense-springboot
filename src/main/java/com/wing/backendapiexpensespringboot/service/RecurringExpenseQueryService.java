@@ -14,8 +14,19 @@ public class RecurringExpenseQueryService {
 
     private final RecurringExpenseRepository recurringExpenseRepository;
 
-    public List<RecurringExpenseDto> getRecurringExpenses(String firebaseUid) {
-        return recurringExpenseRepository.findActiveByFirebaseUidOrderByNextDueDateAsc(firebaseUid)
+    public List<RecurringExpenseDto> getRecurringExpenses(
+            String firebaseUid,
+            int offset,
+            int limit,
+            boolean includeArchived
+    ) {
+        QueryPagination.validate(offset, limit);
+
+        List<RecurringExpenseEntity> expenses = includeArchived
+                ? recurringExpenseRepository.findAllByFirebaseUidOrderByNextDueDateAsc(firebaseUid)
+                : recurringExpenseRepository.findActiveByFirebaseUidOrderByNextDueDateAsc(firebaseUid);
+
+        return QueryPagination.slice(expenses, offset, limit)
                 .stream()
                 .map(this::toDto)
                 .toList();

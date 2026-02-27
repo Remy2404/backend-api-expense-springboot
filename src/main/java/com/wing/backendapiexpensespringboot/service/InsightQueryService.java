@@ -14,8 +14,14 @@ public class InsightQueryService {
 
     private final InsightRepository insightRepository;
 
-    public List<InsightDto> getInsights(String firebaseUid) {
-        return insightRepository.findByFirebaseUidOrderByCreatedAtDesc(firebaseUid)
+    public List<InsightDto> getInsights(String firebaseUid, int offset, int limit) {
+        QueryPagination.validate(offset, limit);
+
+        return QueryPagination.slice(
+                        insightRepository.findByFirebaseUidOrderByCreatedAtDesc(firebaseUid),
+                        offset,
+                        limit
+                )
                 .stream()
                 .map(this::toDto)
                 .toList();

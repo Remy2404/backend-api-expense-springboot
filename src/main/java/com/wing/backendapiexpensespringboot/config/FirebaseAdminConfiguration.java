@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.util.StringUtils;
 
 import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -47,7 +48,14 @@ public class FirebaseAdminConfiguration {
 
     private GoogleCredentials loadCredentials() throws IOException {
         if (StringUtils.hasText(firebaseConfig.getServiceAccountPath())) {
-            try (InputStream is = new FileInputStream(firebaseConfig.getServiceAccountPath())) {
+            File credentialsFile = new File(firebaseConfig.getServiceAccountPath());
+            if (!credentialsFile.exists() || !credentialsFile.isFile()) {
+                throw new IllegalStateException(
+                        "Firebase service account file not found at path: " + credentialsFile.getAbsolutePath()
+                                + ". Set FIREBASE_SERVICE_ACCOUNT_PATH to a valid JSON file."
+                );
+            }
+            try (InputStream is = new FileInputStream(credentialsFile)) {
                 return GoogleCredentials.fromStream(is);
             }
         }
@@ -63,6 +71,16 @@ public class FirebaseAdminConfiguration {
             }
         }
 
-        return GoogleCredentials.getApplicationDefault();
+        try {
+            return GoogleCredentials.getApplicationDefault();
+        } catch (IOException exception) {
+            throw new IllegalStateException(
+                    "Firebase Admin credentials are missing. Configure one of: "
+                            + "FIREBASE_SERVICE_ACCOUNT_PATH (JSON file path), "
+                            + "FIREBASE_SERVICE_ACCOUNT_JSON (raw/base64 JSON), "
+                            + "or GOOGLE_APPLICATION_CREDENTIALS for ADC.",
+                    exception
+            );
+        }
     }
 }

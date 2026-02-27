@@ -20,10 +20,15 @@ public class BudgetQueryService {
     private final BudgetRepository budgetRepository;
     private final CategoryBudgetRepository categoryBudgetRepository;
 
-    public List<BudgetDto> getBudgets(String firebaseUid) {
-        List<BudgetEntity> budgets = budgetRepository.findActiveByFirebaseUidOrderByMonthDesc(firebaseUid);
+    public List<BudgetDto> getBudgets(String firebaseUid, int offset, int limit, boolean includeArchived) {
+        QueryPagination.validate(offset, limit);
 
-        Map<UUID, List<CategoryBudgetDto>> categoryBudgetsByBudgetId = budgets.stream()
+        List<BudgetEntity> budgets = includeArchived
+                ? budgetRepository.findAllByFirebaseUidOrderByMonthDesc(firebaseUid)
+                : budgetRepository.findActiveByFirebaseUidOrderByMonthDesc(firebaseUid);
+        List<BudgetEntity> pagedBudgets = QueryPagination.slice(budgets, offset, limit);
+
+        Map<UUID, List<CategoryBudgetDto>> categoryBudgetsByBudgetId = pagedBudgets.stream()
                 .collect(Collectors.toMap(
                         BudgetEntity::getId,
                         budget -> categoryBudgetRepository.findByBudgetIdAndFirebaseUid(
@@ -37,7 +42,7 @@ public class BudgetQueryService {
                                         .build())
                                 .toList()));
 
-        return budgets.stream().map(budget -> BudgetDto.builder()
+        return pagedBudgets.stream().map(budget -> BudgetDto.builder()
                 .id(budget.getId())
                 .month(budget.getMonth())
                 .totalAmount(budget.getTotalAmount())

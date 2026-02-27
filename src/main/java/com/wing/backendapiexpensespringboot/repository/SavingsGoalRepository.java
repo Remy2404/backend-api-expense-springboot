@@ -14,4 +14,7 @@ public interface SavingsGoalRepository extends JpaRepository<SavingsGoalEntity, 
 
     @Query("SELECT g FROM SavingsGoalEntity g WHERE g.firebaseUid = :firebaseUid AND COALESCE(g.isDeleted, false) = false AND COALESCE(g.isArchived, false) = false ORDER BY g.createdAt DESC")
     List<SavingsGoalEntity> findActiveByFirebaseUidOrderByCreatedAtDesc(@Param("firebaseUid") String firebaseUid);
+
+    @Query("SELECT g FROM SavingsGoalEntity g WHERE g.firebaseUid = :firebaseUid ORDER BY g.createdAt DESC")
+    List<SavingsGoalEntity> findAllByFirebaseUidOrderByCreatedAtDesc(@Param("firebaseUid") String firebaseUid);
 }

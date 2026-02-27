@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -21,8 +22,15 @@ public class BudgetController {
     private final BudgetQueryService budgetQueryService;
 
     @GetMapping
-    public ResponseEntity<List<BudgetDto>> listBudgets(@AuthenticationPrincipal UserPrincipal user) {
-        return ResponseEntity.ok(budgetQueryService.getBudgets(requireFirebaseUid(user)));
+    public ResponseEntity<List<BudgetDto>> listBudgets(
+            @AuthenticationPrincipal UserPrincipal user,
+            @RequestParam(defaultValue = "0") int offset,
+            @RequestParam(defaultValue = "50") int limit,
+            @RequestParam(defaultValue = "false") boolean includeArchived
+    ) {
+        return ResponseEntity.ok(
+                budgetQueryService.getBudgets(requireFirebaseUid(user), offset, limit, includeArchived)
+        );
     }
 
     private String requireFirebaseUid(UserPrincipal user) {

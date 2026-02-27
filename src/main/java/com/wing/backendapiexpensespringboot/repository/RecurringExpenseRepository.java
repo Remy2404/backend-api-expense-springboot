@@ -14,4 +14,7 @@ public interface RecurringExpenseRepository extends JpaRepository<RecurringExpen
 
     @Query("SELECT r FROM RecurringExpenseEntity r WHERE r.firebaseUid = :firebaseUid AND COALESCE(r.isDeleted, false) = false AND COALESCE(r.isActive, true) = true ORDER BY r.nextDueDate ASC")
     List<RecurringExpenseEntity> findActiveByFirebaseUidOrderByNextDueDateAsc(@Param("firebaseUid") String firebaseUid);
+
+    @Query("SELECT r FROM RecurringExpenseEntity r WHERE r.firebaseUid = :firebaseUid ORDER BY r.nextDueDate ASC")
+    List<RecurringExpenseEntity> findAllByFirebaseUidOrderByNextDueDateAsc(@Param("firebaseUid") String firebaseUid);
 }
