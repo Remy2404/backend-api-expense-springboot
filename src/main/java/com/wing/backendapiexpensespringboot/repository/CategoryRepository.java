@@ -9,11 +9,29 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.time.LocalDateTime;
 
 @Repository
 public interface CategoryRepository extends JpaRepository<CategoryEntity, UUID> {
 
     List<CategoryEntity> findByFirebaseUidOrderByNameAsc(String firebaseUid);
+
+    Optional<CategoryEntity> findByIdAndFirebaseUid(UUID id, String firebaseUid);
+
+    @Query("""
+            SELECT c FROM CategoryEntity c
+            WHERE c.firebaseUid = :firebaseUid
+              AND (
+                  (c.updatedAt IS NULL AND c.createdAt IS NULL)
+                  OR COALESCE(c.updatedAt, c.createdAt) >= :since
+                  OR (c.deletedAt IS NOT NULL AND c.deletedAt >= :since)
+              )
+            ORDER BY c.name ASC
+            """)
+    List<CategoryEntity> findChangedSince(
+            @Param("firebaseUid") String firebaseUid,
+            @Param("since") LocalDateTime since
+    );
 
     @Query("""
             SELECT c FROM CategoryEntity c

@@ -36,6 +36,9 @@ public class ExpenseEntity {
     @Column(name = "amount", nullable = false)
     private Double amount;
 
+    @Column(name = "transaction_type", nullable = false)
+    private String transactionType;
+
     @Column(name = "currency")
     private String currency;
 

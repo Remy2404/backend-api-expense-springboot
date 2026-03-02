@@ -7,7 +7,9 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -15,8 +17,23 @@ public interface ExpenseRepository extends JpaRepository<ExpenseEntity, UUID> {
 
     List<ExpenseEntity> findByFirebaseUidOrderByDateDesc(String firebaseUid);
 
+    Optional<ExpenseEntity> findByIdAndFirebaseUid(UUID id, String firebaseUid);
+
     List<ExpenseEntity> findByFirebaseUidAndDateBetweenOrderByDateDesc(
             String firebaseUid, LocalDate start, LocalDate end);
+
+    @Query("""
+            SELECT e FROM ExpenseEntity e
+            WHERE e.firebaseUid = :firebaseUid
+              AND (
+                  COALESCE(e.updatedAt, e.createdAt) >= :since
+                  OR (e.deletedAt IS NOT NULL AND e.deletedAt >= :since)
+              )
+            ORDER BY COALESCE(e.updatedAt, e.createdAt) ASC
+            """)
+    List<ExpenseEntity> findChangedSince(
+            @Param("firebaseUid") String firebaseUid,
+            @Param("since") LocalDateTime since);
 
     @Query("SELECT DISTINCT e.categoryId FROM ExpenseEntity e WHERE e.firebaseUid = :firebaseUid")
     List<UUID> findDistinctCategoryIdsByFirebaseUid(@Param("firebaseUid") String firebaseUid);

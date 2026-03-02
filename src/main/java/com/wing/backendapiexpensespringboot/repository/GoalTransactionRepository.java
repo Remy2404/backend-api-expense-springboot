@@ -11,4 +11,6 @@ import java.util.UUID;
 public interface GoalTransactionRepository extends JpaRepository<GoalTransactionEntity, UUID> {
 
     List<GoalTransactionEntity> findByGoalIdOrderByDateDesc(UUID goalId);
+
+    void deleteByGoalId(UUID goalId);
 }

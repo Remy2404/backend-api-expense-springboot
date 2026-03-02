@@ -16,6 +16,7 @@ import java.util.UUID;
 public class ExpenseListItemDto {
     private UUID id;
     private Double amount;
+    private String transactionType;
     private String currency;
     private String merchant;
     private LocalDate date;

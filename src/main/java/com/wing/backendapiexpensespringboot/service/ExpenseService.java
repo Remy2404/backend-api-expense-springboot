@@ -40,6 +40,7 @@ public class ExpenseService {
         ExpenseEntity expense = ExpenseEntity.builder()
                 .firebaseUid(firebaseUid)
                 .amount((Double) data.get("amount"))
+                .transactionType((String) data.getOrDefault("transactionType", "EXPENSE"))
                 .currency((String) data.getOrDefault("currency", "USD"))
                 .merchant((String) data.get("merchant"))
                 .date((LocalDate) data.getOrDefault("date", LocalDate.now()))

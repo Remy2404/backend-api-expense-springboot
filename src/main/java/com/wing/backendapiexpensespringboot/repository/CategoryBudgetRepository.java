@@ -16,4 +16,6 @@ public interface CategoryBudgetRepository extends JpaRepository<CategoryBudgetEn
     List<CategoryBudgetEntity> findByBudgetIdAndFirebaseUid(
             @Param("budgetId") UUID budgetId,
             @Param("firebaseUid") String firebaseUid);
+
+    void deleteByBudgetId(UUID budgetId);
 }

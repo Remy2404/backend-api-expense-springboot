@@ -71,6 +71,7 @@ public class ExpenseFilterQueryService {
         return ExpenseListItemDto.builder()
                 .id(entity.getId())
                 .amount(entity.getAmount())
+                .transactionType(entity.getTransactionType())
                 .currency(entity.getCurrency())
                 .merchant(entity.getMerchant())
                 .date(entity.getDate())
