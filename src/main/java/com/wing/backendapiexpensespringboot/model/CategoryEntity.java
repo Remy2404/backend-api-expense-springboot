@@ -41,6 +41,9 @@ public class CategoryEntity {
     @Column(name = "is_default")
     private Boolean isDefault;
 
+    @Column(name = "category_type")
+    private String categoryType;
+
     @Column(name = "sort_order")
     private Integer sortOrder;
 

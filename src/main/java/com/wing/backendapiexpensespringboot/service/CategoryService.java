@@ -1,5 +1,6 @@
 package com.wing.backendapiexpensespringboot.service;
 
+import com.wing.backendapiexpensespringboot.model.CategoryType;
 import com.wing.backendapiexpensespringboot.model.CategoryEntity;
 import com.wing.backendapiexpensespringboot.repository.CategoryRepository;
 import lombok.RequiredArgsConstructor;
@@ -21,18 +22,30 @@ public class CategoryService {
         return categoryRepository.findByFirebaseUidOrderByNameAsc(firebaseUid);
     }
 
-    public CategoryEntity getCategoryById(String firebaseUid, UUID categoryId) {
-        return categoryRepository.findById(categoryId)
-                .filter(c -> c.getFirebaseUid().equals(firebaseUid))
-                .orElse(null);
+    public List<CategoryEntity> getCategoriesByType(String firebaseUid, CategoryType categoryType) {
+        return categoryRepository.findActiveByFirebaseUidAndCategoryTypeOrderByNameAsc(
+                firebaseUid,
+                categoryType.name()
+        );
     }
 
-    public CategoryEntity createCategory(String firebaseUid, String name, String icon, String color) {
+    public CategoryEntity getCategoryById(String firebaseUid, UUID categoryId) {
+        return categoryRepository.findOwnedActiveCategory(firebaseUid, categoryId).orElse(null);
+    }
+
+    public CategoryEntity createCategory(
+            String firebaseUid,
+            String name,
+            String icon,
+            String color,
+            CategoryType categoryType
+    ) {
         CategoryEntity category = CategoryEntity.builder()
                 .firebaseUid(firebaseUid)
                 .name(name)
                 .icon(icon)
                 .color(color)
+                .categoryType(categoryType.name())
                 .createdAt(LocalDateTime.now())
                 .build();
         return categoryRepository.save(category);

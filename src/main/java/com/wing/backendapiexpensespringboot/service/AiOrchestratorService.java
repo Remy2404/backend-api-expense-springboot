@@ -5,6 +5,7 @@ import com.wing.backendapiexpensespringboot.config.OpenRouterConfig;
 import com.wing.backendapiexpensespringboot.dto.*;
 import com.wing.backendapiexpensespringboot.exception.AppException;
 import com.wing.backendapiexpensespringboot.model.CategoryEntity;
+import com.wing.backendapiexpensespringboot.model.CategoryType;
 import com.wing.backendapiexpensespringboot.model.ExpenseEntity;
 import com.wing.backendapiexpensespringboot.model.MemoryEntity;
 import lombok.RequiredArgsConstructor;
@@ -521,7 +522,8 @@ public class AiOrchestratorService {
                     firebaseUid,
                     requested.trim(),
                     "tag",  // default icon
-                    "#6366F1" // default color (indigo)
+                    "#6366F1", // default color (indigo)
+                    CategoryType.EXPENSE
             );
             return newCategory;
         } catch (Exception e) {
