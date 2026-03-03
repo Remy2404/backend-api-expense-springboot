@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
@@ -22,6 +23,7 @@ public class ExpenseFilterQueryService {
             int limit,
             LocalDate dateFrom,
             LocalDate dateTo,
+            LocalDateTime updatedSince,
             UUID categoryId,
             String merchant,
             Double minAmount,
@@ -29,15 +31,47 @@ public class ExpenseFilterQueryService {
     ) {
         QueryPagination.validate(offset, limit);
 
-        LocalDate start = dateFrom != null ? dateFrom : LocalDate.now().minusYears(5);
+        boolean hasExplicitDateFilter = dateFrom != null || dateTo != null;
+        LocalDate start = dateFrom != null ? dateFrom : LocalDate.of(1970, 1, 1);
         LocalDate end = dateTo != null ? dateTo : LocalDate.now();
 
-        List<ExpenseEntity> filtered = expenseService.getExpensesBetween(firebaseUid, start, end).stream()
+        List<ExpenseEntity> baseRecords;
+        if (updatedSince != null) {
+            baseRecords = expenseService.getExpensesChangedSince(firebaseUid, updatedSince);
+        } else if (hasExplicitDateFilter) {
+            baseRecords = expenseService.getExpensesBetween(firebaseUid, start, end);
+        } else {
+            baseRecords = expenseService.getExpenses(firebaseUid);
+        }
+
+        List<ExpenseEntity> filtered = baseRecords.stream()
+                .filter(e -> !Boolean.TRUE.equals(e.getIsDeleted()))
+                .filter(e ->
+                        !hasExplicitDateFilter
+                                || (e.getDate() != null
+                                && !e.getDate().isBefore(start)
+                                && !e.getDate().isAfter(end)))
                 .filter(e -> categoryId == null || categoryId.equals(e.getCategoryId()))
                 .filter(e -> merchant == null || merchant.isBlank() || containsIgnoreCase(e.getMerchant(), merchant))
                 .filter(e -> minAmount == null || e.getAmount() >= minAmount)
                 .filter(e -> maxAmount == null || e.getAmount() <= maxAmount)
-                .sorted(Comparator.comparing(ExpenseEntity::getDate).reversed())
+                .sorted(
+                        Comparator.comparing(
+                                        ExpenseEntity::getCreatedAt,
+                                        Comparator.nullsLast(Comparator.naturalOrder()))
+                                .reversed()
+                                .thenComparing(
+                                        ExpenseEntity::getUpdatedAt,
+                                        Comparator.nullsLast(Comparator.naturalOrder()))
+                                .reversed()
+                                .thenComparing(
+                                        ExpenseEntity::getDate,
+                                        Comparator.nullsLast(Comparator.naturalOrder()))
+                                .reversed()
+                                .thenComparing(
+                                        ExpenseEntity::getId,
+                                        Comparator.nullsLast(Comparator.naturalOrder()))
+                                .reversed())
                 .toList();
 
         return QueryPagination.slice(filtered, offset, limit).stream()
@@ -60,6 +94,7 @@ public class ExpenseFilterQueryService {
                 1000,
                 dateFrom,
                 dateTo,
+                null,
                 categoryId,
                 merchant,
                 minAmount,
@@ -78,6 +113,13 @@ public class ExpenseFilterQueryService {
                 .note(entity.getNote())
                 .noteSummary(entity.getNoteSummary())
                 .categoryId(entity.getCategoryId())
+                .recurringExpenseId(entity.getRecurringExpenseId())
+                .receiptPaths(entity.getReceiptPaths())
+                .originalAmount(entity.getOriginalAmount())
+                .exchangeRate(entity.getExchangeRate())
+                .rateSource(entity.getRateSource())
+                .isDeleted(Boolean.TRUE.equals(entity.getIsDeleted()))
+                .deletedAt(entity.getDeletedAt())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .build();

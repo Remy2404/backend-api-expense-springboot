@@ -15,6 +15,14 @@ import java.util.UUID;
 @Repository
 public interface ExpenseRepository extends JpaRepository<ExpenseEntity, UUID> {
 
+    interface FinanceSummaryAggregate {
+        Double getTotalIncome();
+
+        Double getTotalExpense();
+
+        Long getTransactionCount();
+    }
+
     List<ExpenseEntity> findByFirebaseUidOrderByDateDesc(String firebaseUid);
 
     Optional<ExpenseEntity> findByIdAndFirebaseUid(UUID id, String firebaseUid);
@@ -55,4 +63,21 @@ public interface ExpenseRepository extends JpaRepository<ExpenseEntity, UUID> {
             @Param("categoryId") UUID categoryId,
             @Param("start") LocalDate start,
             @Param("end") LocalDate end);
+
+    @Query("""
+            SELECT
+                COALESCE(SUM(CASE WHEN UPPER(COALESCE(e.transactionType, 'EXPENSE')) = 'INCOME' THEN e.amount ELSE 0 END), 0) AS totalIncome,
+                COALESCE(SUM(CASE WHEN UPPER(COALESCE(e.transactionType, 'EXPENSE')) = 'EXPENSE' THEN e.amount ELSE 0 END), 0) AS totalExpense,
+                COUNT(e) AS transactionCount
+            FROM ExpenseEntity e
+            WHERE e.firebaseUid = :firebaseUid
+              AND COALESCE(e.isDeleted, false) = false
+              AND (:dateFrom IS NULL OR e.date >= :dateFrom)
+              AND (:dateTo IS NULL OR e.date <= :dateTo)
+            """)
+    FinanceSummaryAggregate summarizeByFirebaseUid(
+            @Param("firebaseUid") String firebaseUid,
+            @Param("dateFrom") LocalDate dateFrom,
+            @Param("dateTo") LocalDate dateTo
+    );
 }

@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 
 @RestController
@@ -71,7 +72,9 @@ public class SyncController {
         }
 
         try {
-            return OffsetDateTime.parse(raw).toLocalDateTime();
+            return OffsetDateTime.parse(raw)
+                    .atZoneSameInstant(ZoneId.systemDefault())
+                    .toLocalDateTime();
         } catch (Exception ignored) {
         }
         try {
@@ -79,7 +82,9 @@ public class SyncController {
         } catch (Exception ignored) {
         }
         try {
-            return Instant.parse(raw).atOffset(ZoneOffset.UTC).toLocalDateTime();
+            return Instant.parse(raw)
+                    .atZone(ZoneId.systemDefault())
+                    .toLocalDateTime();
         } catch (Exception ignored) {
         }
 
