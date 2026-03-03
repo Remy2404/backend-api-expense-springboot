@@ -29,7 +29,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -71,8 +70,7 @@ public class SyncService {
             LocalDateTime categorySince,
             LocalDateTime budgetSince,
             LocalDateTime goalSince,
-            LocalDateTime recurringSince
-    ) {
+            LocalDateTime recurringSince) {
         SyncPullResponseDto response = SyncPullResponseDto.empty();
 
         List<ExpenseEntity> expenses = expenseRepository.findChangedSince(firebaseUid, expenseSince);
@@ -89,8 +87,7 @@ public class SyncService {
 
         List<RecurringExpenseEntity> recurring = recurringExpenseRepository.findChangedSince(
                 firebaseUid,
-                recurringSince
-        );
+                recurringSince);
         response.setRecurring(recurring.stream().map(this::toRecurringItem).toList());
 
         return response;
@@ -99,8 +96,7 @@ public class SyncService {
     private void syncCategories(
             String firebaseUid,
             List<SyncPushRequestDto.CategoryItem> items,
-            SyncPushResponseDto response
-    ) {
+            SyncPushResponseDto response) {
         for (SyncPushRequestDto.CategoryItem item : items) {
             UUID id = parseUuid(item.getId());
             if (id == null) {
@@ -151,8 +147,7 @@ public class SyncService {
     private void syncExpenses(
             String firebaseUid,
             List<SyncPushRequestDto.ExpenseItem> items,
-            SyncPushResponseDto response
-    ) {
+            SyncPushResponseDto response) {
         for (SyncPushRequestDto.ExpenseItem item : items) {
             UUID id = parseUuid(item.getId());
             if (id == null) {
@@ -223,8 +218,7 @@ public class SyncService {
     private void syncBudgets(
             String firebaseUid,
             List<SyncPushRequestDto.BudgetItem> items,
-            SyncPushResponseDto response
-    ) {
+            SyncPushResponseDto response) {
         for (SyncPushRequestDto.BudgetItem item : items) {
             UUID id = parseUuid(item.getId());
             if (id == null) {
@@ -274,8 +268,7 @@ public class SyncService {
     private void syncGoals(
             String firebaseUid,
             List<SyncPushRequestDto.GoalItem> items,
-            SyncPushResponseDto response
-    ) {
+            SyncPushResponseDto response) {
         for (SyncPushRequestDto.GoalItem item : items) {
             UUID id = parseUuid(item.getId());
             if (id == null) {
@@ -330,8 +323,7 @@ public class SyncService {
     private void syncRecurring(
             String firebaseUid,
             List<SyncPushRequestDto.RecurringItem> items,
-            SyncPushResponseDto response
-    ) {
+            SyncPushResponseDto response) {
         for (SyncPushRequestDto.RecurringItem item : items) {
             UUID id = parseUuid(item.getId());
             if (id == null) {
@@ -408,7 +400,7 @@ public class SyncService {
                 .setParameter("firebaseUid", firebaseUid)
                 .setParameter("name", "Uncategorized")
                 .setParameter("icon", "circle")
-                .setParameter("color", "#64748B")
+                .setParameter("color", "#425d84ff")
                 .setParameter("categoryType", "EXPENSE")
                 .executeUpdate();
     }
@@ -473,8 +465,7 @@ public class SyncService {
     private void upsertCategoryBudgets(
             String firebaseUid,
             UUID budgetId,
-            List<SyncPushRequestDto.CategoryBudgetItem> items
-    ) {
+            List<SyncPushRequestDto.CategoryBudgetItem> items) {
         if (items == null) {
             return;
         }
@@ -574,8 +565,7 @@ public class SyncService {
     private SyncPullResponseDto.BudgetItem toBudgetItem(String firebaseUid, BudgetEntity entity) {
         List<CategoryBudgetEntity> budgets = categoryBudgetRepository.findByBudgetIdAndFirebaseUid(
                 entity.getId(),
-                firebaseUid
-        );
+                firebaseUid);
         List<SyncPullResponseDto.CategoryBudgetItem> categoryBudgets = budgets.stream()
                 .map(item -> SyncPullResponseDto.CategoryBudgetItem.builder()
                         .categoryId(toString(item.getCategoryId()))
@@ -600,8 +590,7 @@ public class SyncService {
 
     private SyncPullResponseDto.GoalItem toGoalItem(SavingsGoalEntity entity) {
         List<GoalTransactionEntity> transactions = goalTransactionRepository.findByGoalIdOrderByDateDesc(
-                entity.getId()
-        );
+                entity.getId());
         List<SyncPullResponseDto.GoalTransactionItem> goalTransactions = transactions.stream()
                 .map(item -> SyncPullResponseDto.GoalTransactionItem.builder()
                         .id(item.getId().toString())
@@ -664,6 +653,7 @@ public class SyncService {
     }
 
     private void addFailed(SyncPushResponseDto response, String id, String entityType, String error) {
+        log.warn("Sync failed for {} id {}: {}", entityType, id, error);
         response.getFailedItems().add(SyncPushResponseDto.FailedItem.builder()
                 .id(id)
                 .entityType(entityType)
