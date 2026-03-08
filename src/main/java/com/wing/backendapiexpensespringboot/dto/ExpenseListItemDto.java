@@ -5,7 +5,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -20,7 +19,7 @@ public class ExpenseListItemDto {
     private String transactionType;
     private String currency;
     private String merchant;
-    private LocalDate date;
+    private String date;
     private String note;
     private String noteSummary;
     private UUID categoryId;

@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -23,7 +24,7 @@ public class NudgeService {
     public NudgesResponse getNudges(String firebaseUid) {
         log.info("Getting nudges for user: {}", firebaseUid);
 
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
         LocalDate thirtyDaysAgo = today.minusDays(30);
 
         List<ExpenseEntity> recentExpenses = expenseService.getExpensesBetween(firebaseUid, thirtyDaysAgo, today);
@@ -48,7 +49,8 @@ public class NudgeService {
 
         // Spending spike nudge
         double todaySpending = recentExpenses.stream()
-                .filter(e -> e.getDate().equals(today))
+                .filter(e -> e.getDate() != null
+                        && e.getDate().withOffsetSameInstant(ZoneOffset.UTC).toLocalDate().equals(today))
                 .mapToDouble(ExpenseEntity::getAmount)
                 .sum();
 

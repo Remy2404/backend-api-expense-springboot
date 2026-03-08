@@ -6,8 +6,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -27,8 +27,17 @@ public interface ExpenseRepository extends JpaRepository<ExpenseEntity, UUID> {
 
     Optional<ExpenseEntity> findByIdAndFirebaseUid(UUID id, String firebaseUid);
 
+    @Query("""
+            SELECT e FROM ExpenseEntity e
+            WHERE e.firebaseUid = :firebaseUid
+              AND e.date >= :startInclusive
+              AND e.date < :endExclusive
+            ORDER BY e.date DESC
+            """)
     List<ExpenseEntity> findByFirebaseUidAndDateBetweenOrderByDateDesc(
-            String firebaseUid, LocalDate start, LocalDate end);
+            @Param("firebaseUid") String firebaseUid,
+            @Param("startInclusive") OffsetDateTime startInclusive,
+            @Param("endExclusive") OffsetDateTime endExclusive);
 
     @Query("""
             SELECT e FROM ExpenseEntity e
@@ -51,18 +60,30 @@ public interface ExpenseRepository extends JpaRepository<ExpenseEntity, UUID> {
             @Param("firebaseUid") String firebaseUid,
             @Param("categoryId") UUID categoryId);
 
-    @Query("SELECT SUM(e.amount) FROM ExpenseEntity e WHERE e.firebaseUid = :firebaseUid AND e.date BETWEEN :start AND :end")
+    @Query("""
+            SELECT SUM(e.amount) FROM ExpenseEntity e
+            WHERE e.firebaseUid = :firebaseUid
+              AND e.date >= :startInclusive
+              AND e.date < :endExclusive
+            """)
     Double sumAmountByFirebaseUidAndDateBetween(
             @Param("firebaseUid") String firebaseUid,
-            @Param("start") LocalDate start,
-            @Param("end") LocalDate end);
+            @Param("startInclusive") OffsetDateTime startInclusive,
+            @Param("endExclusive") OffsetDateTime endExclusive);
 
-    @Query("SELECT e FROM ExpenseEntity e WHERE e.firebaseUid = :firebaseUid AND e.categoryId = :categoryId AND e.date BETWEEN :start AND :end")
+    @Query("""
+            SELECT e FROM ExpenseEntity e
+            WHERE e.firebaseUid = :firebaseUid
+              AND e.categoryId = :categoryId
+              AND e.date >= :startInclusive
+              AND e.date < :endExclusive
+            ORDER BY e.date DESC
+            """)
     List<ExpenseEntity> findByFirebaseUidAndCategoryIdAndDateBetween(
             @Param("firebaseUid") String firebaseUid,
             @Param("categoryId") UUID categoryId,
-            @Param("start") LocalDate start,
-            @Param("end") LocalDate end);
+            @Param("startInclusive") OffsetDateTime startInclusive,
+            @Param("endExclusive") OffsetDateTime endExclusive);
 
     @Query("""
             SELECT
@@ -72,12 +93,25 @@ public interface ExpenseRepository extends JpaRepository<ExpenseEntity, UUID> {
             FROM ExpenseEntity e
             WHERE e.firebaseUid = :firebaseUid
               AND COALESCE(e.isDeleted, false) = false
-              AND (:dateFrom IS NULL OR e.date >= :dateFrom)
-              AND (:dateTo IS NULL OR e.date <= :dateTo)
             """)
     FinanceSummaryAggregate summarizeByFirebaseUid(
+            @Param("firebaseUid") String firebaseUid
+    );
+
+    @Query("""
+            SELECT
+                COALESCE(SUM(CASE WHEN UPPER(COALESCE(e.transactionType, 'EXPENSE')) = 'INCOME' THEN e.amount ELSE 0 END), 0) AS totalIncome,
+                COALESCE(SUM(CASE WHEN UPPER(COALESCE(e.transactionType, 'EXPENSE')) = 'EXPENSE' THEN e.amount ELSE 0 END), 0) AS totalExpense,
+                COUNT(e) AS transactionCount
+            FROM ExpenseEntity e
+            WHERE e.firebaseUid = :firebaseUid
+              AND COALESCE(e.isDeleted, false) = false
+              AND e.date >= :dateFrom
+              AND e.date < :dateToExclusive
+            """)
+    FinanceSummaryAggregate summarizeByFirebaseUidAndDateBetween(
             @Param("firebaseUid") String firebaseUid,
-            @Param("dateFrom") LocalDate dateFrom,
-            @Param("dateTo") LocalDate dateTo
+            @Param("dateFrom") OffsetDateTime dateFrom,
+            @Param("dateToExclusive") OffsetDateTime dateToExclusive
     );
 }

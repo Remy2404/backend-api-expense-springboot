@@ -1,7 +1,9 @@
 package com.wing.backendapiexpensespringboot.config;
 
 import com.wing.backendapiexpensespringboot.security.FirebaseAuthFilter;
+import com.wing.backendapiexpensespringboot.security.DevAuthFilter;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -25,7 +27,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final FirebaseAuthFilter firebaseAuthFilter;
+    private final ObjectProvider<FirebaseAuthFilter> firebaseAuthFilterProvider;
+    private final ObjectProvider<DevAuthFilter> devAuthFilterProvider;
     private final AppConfig appConfig;
 
     @Bean
@@ -36,8 +39,17 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/health", "/actuator/health").permitAll()
-                        .anyRequest().authenticated())
-                .addFilterBefore(firebaseAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                        .anyRequest().authenticated());
+
+        FirebaseAuthFilter firebaseAuthFilter = firebaseAuthFilterProvider.getIfAvailable();
+        if (firebaseAuthFilter != null) {
+            http.addFilterBefore(firebaseAuthFilter, UsernamePasswordAuthenticationFilter.class);
+        } else {
+            DevAuthFilter devAuthFilter = devAuthFilterProvider.getIfAvailable();
+            if (devAuthFilter != null) {
+                http.addFilterBefore(devAuthFilter, UsernamePasswordAuthenticationFilter.class);
+            }
+        }
 
         return http.build();
     }

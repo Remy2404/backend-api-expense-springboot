@@ -153,7 +153,7 @@ public class ExpenseController {
                 .transactionType(entity.getTransactionType())
                 .currency(entity.getCurrency())
                 .merchant(entity.getMerchant())
-                .date(entity.getDate())
+                .date(entity.getDate() == null ? null : entity.getDate().withOffsetSameInstant(ZoneOffset.UTC).toString())
                 .note(entity.getNote())
                 .noteSummary(entity.getNoteSummary())
                 .categoryId(entity.getCategoryId())

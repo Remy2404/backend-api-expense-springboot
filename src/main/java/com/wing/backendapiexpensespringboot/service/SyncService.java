@@ -621,7 +621,7 @@ public class SyncService {
                 .amount(entity.getAmount())
                 .transactionType(entity.getTransactionType())
                 .categoryId(toString(entity.getCategoryId()))
-                .date(entity.getDate() == null ? null : entity.getDate().toString())
+                .date(formatOffsetDateTime(entity.getDate()))
                 .notes(entity.getNote())
                 .merchant(entity.getMerchant())
                 .noteSummary(entity.getNoteSummary())
@@ -796,16 +796,20 @@ public class SyncService {
         return trimmed.isEmpty() ? fallback : trimmed;
     }
 
-    private LocalDate resolveExpenseDate(String raw) {
+    private OffsetDateTime resolveExpenseDate(String raw) {
         if (raw == null || raw.isBlank()) {
-            return LocalDate.now();
+            return OffsetDateTime.now(ZoneOffset.UTC);
         }
         try {
-            return LocalDate.parse(raw);
+            return LocalDate.parse(raw).atStartOfDay().atOffset(ZoneOffset.UTC);
         } catch (Exception ignored) {
-            LocalDateTime dateTime = parseDateTime(raw);
-            return dateTime == null ? LocalDate.now() : dateTime.toLocalDate();
         }
+        try {
+            return OffsetDateTime.parse(raw).withOffsetSameInstant(ZoneOffset.UTC);
+        } catch (Exception ignored) {
+        }
+        LocalDateTime dateTime = parseDateTime(raw);
+        return dateTime == null ? OffsetDateTime.now(ZoneOffset.UTC) : dateTime.atOffset(ZoneOffset.UTC);
     }
 
     private LocalDateTime resolveDateTimeOrNow(String raw) {
@@ -857,6 +861,13 @@ public class SyncService {
                 .withZoneSameInstant(ZoneOffset.UTC)
                 .toOffsetDateTime()
                 .toString();
+    }
+
+    private String formatOffsetDateTime(OffsetDateTime value) {
+        if (value == null) {
+            return null;
+        }
+        return value.withOffsetSameInstant(ZoneOffset.UTC).toString();
     }
 
     private String toString(UUID value) {

@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Locale;
 
@@ -30,7 +31,12 @@ public class FinanceSummaryService {
         }
 
         ExpenseRepository.FinanceSummaryAggregate aggregate =
-                expenseRepository.summarizeByFirebaseUid(firebaseUid, periodStart, periodEnd);
+                period == SummaryPeriod.THIS_MONTH
+                        ? expenseRepository.summarizeByFirebaseUidAndDateBetween(
+                                firebaseUid,
+                                toStartOfDayUtc(periodStart),
+                                toStartOfNextDayUtc(periodEnd))
+                        : expenseRepository.summarizeByFirebaseUid(firebaseUid);
         double totalIncome = toDouble(aggregate == null ? null : aggregate.getTotalIncome());
         double totalExpense = toDouble(aggregate == null ? null : aggregate.getTotalExpense());
         long transactionCount = toLong(aggregate == null ? null : aggregate.getTransactionCount());
@@ -58,6 +64,20 @@ public class FinanceSummaryService {
             return 0L;
         }
         return value.longValue();
+    }
+
+    private OffsetDateTime toStartOfDayUtc(LocalDate date) {
+        if (date == null) {
+            return null;
+        }
+        return date.atStartOfDay().atOffset(ZoneOffset.UTC);
+    }
+
+    private OffsetDateTime toStartOfNextDayUtc(LocalDate date) {
+        if (date == null) {
+            return null;
+        }
+        return date.plusDays(1).atStartOfDay().atOffset(ZoneOffset.UTC);
     }
 
     private enum SummaryPeriod {

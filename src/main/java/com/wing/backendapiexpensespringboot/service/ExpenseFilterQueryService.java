@@ -33,7 +33,7 @@ public class ExpenseFilterQueryService {
 
         boolean hasExplicitDateFilter = dateFrom != null || dateTo != null;
         LocalDate start = dateFrom != null ? dateFrom : LocalDate.of(1970, 1, 1);
-        LocalDate end = dateTo != null ? dateTo : LocalDate.now();
+        LocalDate end = dateTo != null ? dateTo : LocalDate.now(java.time.ZoneOffset.UTC);
 
         List<ExpenseEntity> baseRecords;
         if (updatedSince != null) {
@@ -48,9 +48,7 @@ public class ExpenseFilterQueryService {
                 .filter(e -> !Boolean.TRUE.equals(e.getIsDeleted()))
                 .filter(e ->
                         !hasExplicitDateFilter
-                                || (e.getDate() != null
-                                && !e.getDate().isBefore(start)
-                                && !e.getDate().isAfter(end)))
+                                || isWithinDateRange(e, start, end))
                 .filter(e -> categoryId == null || categoryId.equals(e.getCategoryId()))
                 .filter(e -> merchant == null || merchant.isBlank() || containsIgnoreCase(e.getMerchant(), merchant))
                 .filter(e -> minAmount == null || e.getAmount() >= minAmount)
@@ -109,7 +107,7 @@ public class ExpenseFilterQueryService {
                 .transactionType(entity.getTransactionType())
                 .currency(entity.getCurrency())
                 .merchant(entity.getMerchant())
-                .date(entity.getDate())
+                .date(formatExpenseDate(entity))
                 .note(entity.getNote())
                 .noteSummary(entity.getNoteSummary())
                 .categoryId(entity.getCategoryId())
@@ -130,5 +128,22 @@ public class ExpenseFilterQueryService {
             return false;
         }
         return value.toLowerCase().contains(query.toLowerCase().trim());
+    }
+
+    private boolean isWithinDateRange(ExpenseEntity entity, LocalDate start, LocalDate end) {
+        LocalDate expenseDate = toUtcDate(entity);
+        return expenseDate != null && !expenseDate.isBefore(start) && !expenseDate.isAfter(end);
+    }
+
+    private String formatExpenseDate(ExpenseEntity entity) {
+        return entity.getDate() == null
+                ? null
+                : entity.getDate().withOffsetSameInstant(java.time.ZoneOffset.UTC).toString();
+    }
+
+    private LocalDate toUtcDate(ExpenseEntity entity) {
+        return entity.getDate() == null
+                ? null
+                : entity.getDate().withOffsetSameInstant(java.time.ZoneOffset.UTC).toLocalDate();
     }
 }

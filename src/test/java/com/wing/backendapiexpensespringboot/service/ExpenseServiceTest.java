@@ -10,8 +10,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -44,7 +45,7 @@ class ExpenseServiceTest {
                 .firebaseUid(firebaseUid)
                 .amount(12.5)
                 .transactionType("EXPENSE")
-                .date(LocalDate.of(2026, 3, 3))
+                .date(OffsetDateTime.of(2026, 3, 3, 0, 0, 0, 0, ZoneOffset.UTC))
                 .createdAt(LocalDateTime.of(2026, 3, 3, 11, 52))
                 .updatedAt(LocalDateTime.of(2026, 3, 3, 11, 52))
                 .build();

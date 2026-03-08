@@ -14,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -31,7 +31,10 @@ public class ExpenseService {
     }
 
     public List<ExpenseEntity> getExpensesBetween(String firebaseUid, LocalDate start, LocalDate end) {
-        return expenseRepository.findByFirebaseUidAndDateBetweenOrderByDateDesc(firebaseUid, start, end);
+        return expenseRepository.findByFirebaseUidAndDateBetweenOrderByDateDesc(
+                firebaseUid,
+                startOfDayUtc(start),
+                startOfNextDayUtc(end));
     }
 
     public List<ExpenseEntity> getExpensesChangedSince(String firebaseUid, LocalDateTime since) {
@@ -52,7 +55,7 @@ public class ExpenseService {
                 .transactionType((String) data.getOrDefault("transactionType", "EXPENSE"))
                 .currency((String) data.getOrDefault("currency", "USD"))
                 .merchant((String) data.get("merchant"))
-                .date((LocalDate) data.getOrDefault("date", LocalDate.now()))
+                .date(resolveExpenseDateValue(data.get("date")))
                 .note((String) data.get("note"))
                 .noteSummary((String) data.get("noteSummary"))
                 .categoryId((UUID) data.get("categoryId"))
@@ -80,7 +83,7 @@ public class ExpenseService {
                 .transactionType(normalizeTransactionType(request.getTransactionType()))
                 .currency(normalizeCurrency(request.getCurrency()))
                 .merchant(request.getMerchant())
-                .date(parseDateOrToday(request.getDate()))
+                .date(parseExpenseDateOrNow(request.getDate()))
                 .note(request.getNotes())
                 .noteSummary(request.getNoteSummary())
                 .categoryId(parseUuidOrNull(request.getCategoryId()))
@@ -125,7 +128,7 @@ public class ExpenseService {
             expense.setMerchant(request.getMerchant());
         }
         if (request.getDate() != null && !request.getDate().isBlank()) {
-            expense.setDate(parseDateOrToday(request.getDate()));
+            expense.setDate(parseExpenseDateOrNow(request.getDate()));
         }
         if (request.getNotes() != null) {
             expense.setNote(request.getNotes());
@@ -178,7 +181,10 @@ public class ExpenseService {
     }
 
     public Double getTotalBetween(String firebaseUid, LocalDate start, LocalDate end) {
-        Double total = expenseRepository.sumAmountByFirebaseUidAndDateBetween(firebaseUid, start, end);
+        Double total = expenseRepository.sumAmountByFirebaseUidAndDateBetween(
+                firebaseUid,
+                startOfDayUtc(start),
+                startOfNextDayUtc(end));
         return total != null ? total : 0.0;
     }
 
@@ -188,24 +194,46 @@ public class ExpenseService {
 
     public List<ExpenseEntity> getByCategoryBetween(String firebaseUid, UUID categoryId,
                                                      LocalDate start, LocalDate end) {
-        return expenseRepository.findByFirebaseUidAndCategoryIdAndDateBetween(firebaseUid, categoryId, start, end);
+        return expenseRepository.findByFirebaseUidAndCategoryIdAndDateBetween(
+                firebaseUid,
+                categoryId,
+                startOfDayUtc(start),
+                startOfNextDayUtc(end));
     }
 
-    private LocalDate parseDateOrToday(String raw) {
+    private OffsetDateTime parseExpenseDateOrNow(String raw) {
         if (raw == null || raw.isBlank()) {
-            return LocalDate.now();
+            return OffsetDateTime.now(ZoneOffset.UTC);
         }
         try {
-            return LocalDate.parse(raw);
+            return LocalDate.parse(raw).atStartOfDay().atOffset(ZoneOffset.UTC);
         } catch (Exception ignored) {
         }
         try {
-            return OffsetDateTime.parse(raw)
-                    .atZoneSameInstant(ZoneId.systemDefault())
-                    .toLocalDate();
+            return normalizeToUtc(OffsetDateTime.parse(raw));
+        } catch (Exception ignored) {
+        }
+        try {
+            return LocalDateTime.parse(raw).atOffset(ZoneOffset.UTC);
         } catch (Exception ignored) {
         }
         throw AppException.badRequest("date must be ISO-8601 date or datetime");
+    }
+
+    private OffsetDateTime resolveExpenseDateValue(Object rawValue) {
+        if (rawValue == null) {
+            return OffsetDateTime.now(ZoneOffset.UTC);
+        }
+        if (rawValue instanceof OffsetDateTime offsetDateTime) {
+            return normalizeToUtc(offsetDateTime);
+        }
+        if (rawValue instanceof LocalDate localDate) {
+            return localDate.atStartOfDay().atOffset(ZoneOffset.UTC);
+        }
+        if (rawValue instanceof LocalDateTime localDateTime) {
+            return localDateTime.atOffset(ZoneOffset.UTC);
+        }
+        return parseExpenseDateOrNow(String.valueOf(rawValue));
     }
 
     private LocalDateTime parseDateTimeOrNow(String raw) {
@@ -214,7 +242,7 @@ public class ExpenseService {
         }
         try {
             return OffsetDateTime.parse(raw)
-                    .atZoneSameInstant(ZoneId.systemDefault())
+                    .withOffsetSameInstant(ZoneOffset.UTC)
                     .toLocalDateTime();
         } catch (Exception ignored) {
         }
@@ -269,8 +297,18 @@ public class ExpenseService {
     }
 
     private LocalDateTime nowUtcLocal() {
-        return OffsetDateTime.now(java.time.ZoneOffset.UTC)
-                .atZoneSameInstant(ZoneId.systemDefault())
-                .toLocalDateTime();
+        return OffsetDateTime.now(ZoneOffset.UTC).toLocalDateTime();
+    }
+
+    private OffsetDateTime startOfDayUtc(LocalDate date) {
+        return date.atStartOfDay().atOffset(ZoneOffset.UTC);
+    }
+
+    private OffsetDateTime startOfNextDayUtc(LocalDate date) {
+        return date.plusDays(1).atStartOfDay().atOffset(ZoneOffset.UTC);
+    }
+
+    private OffsetDateTime normalizeToUtc(OffsetDateTime value) {
+        return value.withOffsetSameInstant(ZoneOffset.UTC);
     }
 }

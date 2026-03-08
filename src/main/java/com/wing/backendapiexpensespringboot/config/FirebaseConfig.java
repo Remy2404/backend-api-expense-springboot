@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Configuration;
 @ConfigurationProperties(prefix = "firebase")
 public class FirebaseConfig {
 
+    private boolean enabled = true;
     private String projectId;
     /**
      * Optional absolute/relative file path to Firebase service account JSON.
@@ -20,4 +21,7 @@ public class FirebaseConfig {
      * Recommended for container/CI environments.
      */
     private String serviceAccountJson;
+    private String devDefaultUid = "dev-user";
+    private String devDefaultEmail = "dev@expense-tracker.local";
+    private String devDefaultRole = "USER";
 }
