@@ -7,6 +7,7 @@ import com.wing.backendapiexpensespringboot.model.ExpenseEntity;
 import com.wing.backendapiexpensespringboot.security.UserPrincipal;
 import com.wing.backendapiexpensespringboot.service.ExpenseFilterQueryService;
 import com.wing.backendapiexpensespringboot.service.ExpenseService;
+import com.wing.backendapiexpensespringboot.service.RealtimeRelayService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -36,6 +37,7 @@ public class ExpenseController {
 
     private final ExpenseFilterQueryService expenseFilterQueryService;
     private final ExpenseService expenseService;
+    private final RealtimeRelayService realtimeRelayService;
 
     @GetMapping
     public ResponseEntity<List<ExpenseListItemDto>> listExpenses(
@@ -69,7 +71,9 @@ public class ExpenseController {
             @AuthenticationPrincipal UserPrincipal user,
             @RequestBody ExpenseMutationRequestDto request
     ) {
-        ExpenseEntity created = expenseService.createExpense(requireFirebaseUid(user), request);
+        String firebaseUid = requireFirebaseUid(user);
+        ExpenseEntity created = expenseService.createExpense(firebaseUid, request);
+        realtimeRelayService.publishSyncInvalidation(firebaseUid, List.of("expenses"), "expense_created");
         return ResponseEntity.status(HttpStatus.CREATED).body(toDto(created));
     }
 
@@ -80,7 +84,9 @@ public class ExpenseController {
             @RequestBody ExpenseMutationRequestDto request
     ) {
         UUID expenseId = parseUuid(expenseIdRaw, "id");
-        ExpenseEntity updated = expenseService.updateExpense(requireFirebaseUid(user), expenseId, request);
+        String firebaseUid = requireFirebaseUid(user);
+        ExpenseEntity updated = expenseService.updateExpense(firebaseUid, expenseId, request);
+        realtimeRelayService.publishSyncInvalidation(firebaseUid, List.of("expenses"), "expense_updated");
         return ResponseEntity.ok(toDto(updated));
     }
 
@@ -90,7 +96,9 @@ public class ExpenseController {
             @PathVariable("id") String expenseIdRaw
     ) {
         UUID expenseId = parseUuid(expenseIdRaw, "id");
-        ExpenseEntity deleted = expenseService.softDeleteExpense(requireFirebaseUid(user), expenseId);
+        String firebaseUid = requireFirebaseUid(user);
+        ExpenseEntity deleted = expenseService.softDeleteExpense(firebaseUid, expenseId);
+        realtimeRelayService.publishSyncInvalidation(firebaseUid, List.of("expenses"), "expense_deleted");
         return ResponseEntity.ok(toDto(deleted));
     }
 

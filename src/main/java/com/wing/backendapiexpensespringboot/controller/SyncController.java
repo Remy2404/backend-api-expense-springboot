@@ -5,6 +5,7 @@ import com.wing.backendapiexpensespringboot.dto.SyncPushRequestDto;
 import com.wing.backendapiexpensespringboot.dto.SyncPushResponseDto;
 import com.wing.backendapiexpensespringboot.exception.AppException;
 import com.wing.backendapiexpensespringboot.security.UserPrincipal;
+import com.wing.backendapiexpensespringboot.service.RealtimeRelayService;
 import com.wing.backendapiexpensespringboot.service.SyncService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -30,14 +31,36 @@ public class SyncController {
     private static final LocalDateTime DEFAULT_SINCE = LocalDateTime.of(1970, 1, 1, 0, 0);
 
     private final SyncService syncService;
+    private final RealtimeRelayService realtimeRelayService;
 
     @PostMapping("/push")
     public ResponseEntity<SyncPushResponseDto> push(
             @AuthenticationPrincipal UserPrincipal user,
             @RequestBody(required = false) SyncPushRequestDto request
     ) {
+        String firebaseUid = requireFirebaseUid(user);
         SyncPushRequestDto safeRequest = request == null ? new SyncPushRequestDto() : request;
-        return ResponseEntity.ok(syncService.push(requireFirebaseUid(user), safeRequest));
+        SyncPushResponseDto response = syncService.push(firebaseUid, safeRequest);
+
+        java.util.ArrayList<String> changedEntities = new java.util.ArrayList<>();
+        if (!safeRequest.getExpenses().isEmpty()) {
+            changedEntities.add("expenses");
+        }
+        if (!safeRequest.getCategories().isEmpty()) {
+            changedEntities.add("categories");
+        }
+        if (!safeRequest.getBudgets().isEmpty()) {
+            changedEntities.add("budgets");
+        }
+        if (!safeRequest.getGoals().isEmpty()) {
+            changedEntities.add("goals");
+        }
+        if (!safeRequest.getRecurring().isEmpty()) {
+            changedEntities.add("recurring");
+        }
+
+        realtimeRelayService.publishSyncInvalidation(firebaseUid, changedEntities, "sync_push");
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/pull")

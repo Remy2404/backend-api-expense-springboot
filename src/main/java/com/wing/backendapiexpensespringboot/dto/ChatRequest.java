@@ -33,4 +33,7 @@ public class ChatRequest {
     private String attachmentBase64;
 
     private String attachmentMime; // "image/jpeg", "image/png", "image/webp"
+
+    @Size(max = 128, message = "requestId must be at most 128 characters")
+    private String requestId;
 }
