@@ -60,7 +60,7 @@ public class ExpenseEntity {
     private UUID aiCategoryId;
 
     @Column(name = "ai_confidence")
-    private BigDecimal aiConfidence;
+    private Double aiConfidence;
 
     @Column(name = "ai_source")
     private String aiSource;
