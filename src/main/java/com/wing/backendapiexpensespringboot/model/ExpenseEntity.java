@@ -12,6 +12,7 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -59,7 +60,7 @@ public class ExpenseEntity {
     private UUID aiCategoryId;
 
     @Column(name = "ai_confidence")
-    private Double aiConfidence;
+    private BigDecimal aiConfidence;
 
     @Column(name = "ai_source")
     private String aiSource;
