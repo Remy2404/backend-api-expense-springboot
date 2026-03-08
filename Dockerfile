@@ -11,6 +11,7 @@ COPY pom.xml .
 
 # Resolve maven dependencies
 # This step gives us a cached layer with all dependencies downloaded
+RUN chmod +x mvnw
 RUN ./mvnw dependency:go-offline -B
 
 # Copy the project source
