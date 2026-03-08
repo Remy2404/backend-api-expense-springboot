@@ -1,5 +1,6 @@
 package com.wing.backendapiexpensespringboot;
 
+import com.wing.backendapiexpensespringboot.config.DatabaseEnvironmentInitializer;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
@@ -7,7 +8,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class BackendApiExpenseSpringbootApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(BackendApiExpenseSpringbootApplication.class, args);
+        SpringApplication application = new SpringApplication(BackendApiExpenseSpringbootApplication.class);
+        application.addInitializers(new DatabaseEnvironmentInitializer());
+        application.run(args);
     }
 
 }
