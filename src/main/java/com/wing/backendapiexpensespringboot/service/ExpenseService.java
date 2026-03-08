@@ -11,6 +11,7 @@ import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -89,8 +90,8 @@ public class ExpenseService {
                 .categoryId(parseUuidOrNull(request.getCategoryId()))
                 .recurringExpenseId(parseUuidOrNull(request.getRecurringExpenseId()))
                 .receiptPaths(request.getReceiptPaths())
-                .originalAmount(request.getOriginalAmount())
-                .exchangeRate(request.getExchangeRate())
+                .originalAmount(toBigDecimalNullable(request.getOriginalAmount()))
+                .exchangeRate(toBigDecimalNullable(request.getExchangeRate()))
                 .rateSource(request.getRateSource())
                 .isDeleted(false)
                 .createdAt(createdAt)
@@ -146,10 +147,10 @@ public class ExpenseService {
             expense.setReceiptPaths(request.getReceiptPaths());
         }
         if (request.getOriginalAmount() != null) {
-            expense.setOriginalAmount(request.getOriginalAmount());
+            expense.setOriginalAmount(toBigDecimalNullable(request.getOriginalAmount()));
         }
         if (request.getExchangeRate() != null) {
-            expense.setExchangeRate(request.getExchangeRate());
+            expense.setExchangeRate(toBigDecimalNullable(request.getExchangeRate()));
         }
         if (request.getRateSource() != null) {
             expense.setRateSource(request.getRateSource());
@@ -294,6 +295,10 @@ public class ExpenseService {
             throw AppException.badRequest("amount is required");
         }
         return amount;
+    }
+
+    private BigDecimal toBigDecimalNullable(Double value) {
+        return value == null ? null : BigDecimal.valueOf(value);
     }
 
     private LocalDateTime nowUtcLocal() {

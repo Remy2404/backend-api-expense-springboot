@@ -301,8 +301,8 @@ public class SyncService {
             entity.setRecurringExpenseId(parseUuid(item.getRecurringExpenseId()));
             entity.setReceiptPaths(item.getReceiptPaths());
             entity.setCurrency(normalizeText(item.getCurrency(), "USD"));
-            entity.setOriginalAmount(item.getOriginalAmount());
-            entity.setExchangeRate(item.getExchangeRate());
+            entity.setOriginalAmount(toBigDecimalNullable(item.getOriginalAmount()));
+            entity.setExchangeRate(toBigDecimalNullable(item.getExchangeRate()));
             entity.setRateSource(item.getRateSource());
             entity.setIsDeleted(Boolean.TRUE.equals(item.getIsDeleted()));
             entity.setDeletedAt(parseDateTime(item.getDeletedAt()));
@@ -632,8 +632,8 @@ public class SyncService {
                 .recurringExpenseId(toString(entity.getRecurringExpenseId()))
                 .receiptPaths(entity.getReceiptPaths() == null ? List.of() : entity.getReceiptPaths())
                 .currency(entity.getCurrency())
-                .originalAmount(entity.getOriginalAmount())
-                .exchangeRate(entity.getExchangeRate())
+                .originalAmount(entity.getOriginalAmount() == null ? null : entity.getOriginalAmount().doubleValue())
+                .exchangeRate(entity.getExchangeRate() == null ? null : entity.getExchangeRate().doubleValue())
                 .rateSource(entity.getRateSource())
                 .createdAt(formatDateTime(entity.getCreatedAt()))
                 .updatedAt(formatDateTime(entity.getUpdatedAt()))

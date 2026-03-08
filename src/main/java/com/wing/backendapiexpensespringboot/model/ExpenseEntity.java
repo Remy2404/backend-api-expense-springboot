@@ -11,6 +11,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -69,11 +70,11 @@ public class ExpenseEntity {
     @Column(name = "recurring_expense_id")
     private UUID recurringExpenseId;
 
-    @Column(name = "original_amount")
-    private Double originalAmount;
+    @Column(name = "original_amount", precision = 12, scale = 2)
+    private BigDecimal originalAmount;
 
-    @Column(name = "exchange_rate")
-    private Double exchangeRate;
+    @Column(name = "exchange_rate", precision = 18, scale = 8)
+    private BigDecimal exchangeRate;
 
     @Column(name = "rate_source")
     private String rateSource;
