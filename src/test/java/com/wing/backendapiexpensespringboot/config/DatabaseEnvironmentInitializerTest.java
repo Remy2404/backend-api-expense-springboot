@@ -40,6 +40,21 @@ class DatabaseEnvironmentInitializerTest {
     }
 
     @Test
+    void resolveDatabaseSettingsStripsWrappingQuotesFromEnvValues() {
+        MockEnvironment environment = new MockEnvironment()
+                .withProperty("DATABASE_JDBC_URL", "\"jdbc:postgresql://pooler.supabase.com:5432/postgres?sslmode=require\"")
+                .withProperty("DB_USERNAME", "\"db-user\"")
+                .withProperty("DB_PASSWORD", "\"db-pass\"");
+
+        DatabaseEnvironmentInitializer.NormalizedDatabaseSettings settings =
+                DatabaseEnvironmentInitializer.resolveDatabaseSettings(environment);
+
+        assertEquals("jdbc:postgresql://pooler.supabase.com:5432/postgres?sslmode=require", settings.jdbcUrl());
+        assertEquals("db-user", settings.username());
+        assertEquals("db-pass", settings.password());
+    }
+
+    @Test
     void resolveDatabaseSettingsReturnsNullWhenNoUrlIsPresent() {
         assertNull(DatabaseEnvironmentInitializer.resolveDatabaseSettings(new MockEnvironment()));
     }

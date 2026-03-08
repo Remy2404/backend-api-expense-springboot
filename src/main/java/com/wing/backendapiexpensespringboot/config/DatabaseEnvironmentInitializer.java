@@ -136,11 +136,29 @@ public class DatabaseEnvironmentInitializer implements ApplicationContextInitial
 
     private static String firstNonBlank(String... values) {
         for (String value : values) {
-            if (StringUtils.hasText(value)) {
-                return value.trim();
+            String normalized = normalizeValue(value);
+            if (StringUtils.hasText(normalized)) {
+                return normalized;
             }
         }
         return null;
+    }
+
+    private static String normalizeValue(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+
+        String trimmed = value.trim();
+        if (trimmed.length() >= 2) {
+            boolean wrappedInDoubleQuotes = trimmed.startsWith("\"") && trimmed.endsWith("\"");
+            boolean wrappedInSingleQuotes = trimmed.startsWith("'") && trimmed.endsWith("'");
+            if (wrappedInDoubleQuotes || wrappedInSingleQuotes) {
+                return trimmed.substring(1, trimmed.length() - 1).trim();
+            }
+        }
+
+        return trimmed;
     }
 
     record NormalizedDatabaseSettings(String jdbcUrl, String username, String password) {
