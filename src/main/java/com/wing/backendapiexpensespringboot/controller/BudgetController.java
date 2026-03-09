@@ -26,11 +26,25 @@ public class BudgetController {
             @AuthenticationPrincipal UserPrincipal user,
             @RequestParam(defaultValue = "0") int offset,
             @RequestParam(defaultValue = "50") int limit,
-            @RequestParam(defaultValue = "false") boolean includeArchived
-    ) {
+            @RequestParam(defaultValue = "false") boolean includeArchived) {
         return ResponseEntity.ok(
-                budgetQueryService.getBudgets(requireFirebaseUid(user), offset, limit, includeArchived)
-        );
+                budgetQueryService.getBudgets(requireFirebaseUid(user), offset, limit, includeArchived));
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<BudgetDto> getBudget(
+            @AuthenticationPrincipal UserPrincipal user,
+            @org.springframework.web.bind.annotation.PathVariable("id") java.util.UUID id) {
+        return ResponseEntity.ok(
+                budgetQueryService.getBudgetById(requireFirebaseUid(user), id));
+    }
+
+    @GetMapping("/month/{month}")
+    public ResponseEntity<BudgetDto> getBudgetByMonth(
+            @AuthenticationPrincipal UserPrincipal user,
+            @org.springframework.web.bind.annotation.PathVariable("month") String month) {
+        return ResponseEntity.ok(
+                budgetQueryService.getBudgetByMonth(requireFirebaseUid(user), month));
     }
 
     private String requireFirebaseUid(UserPrincipal user) {

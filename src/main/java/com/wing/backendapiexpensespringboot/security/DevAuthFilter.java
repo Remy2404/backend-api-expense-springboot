@@ -23,7 +23,12 @@ import java.util.Set;
 @ConditionalOnProperty(prefix = "firebase", name = "enabled", havingValue = "false")
 public class DevAuthFilter extends OncePerRequestFilter {
 
-    private static final Set<String> PUBLIC_ENDPOINT_SUFFIXES = Set.of("/health", "/actuator/health");
+    private static final Set<String> PUBLIC_ENDPOINT_SUFFIXES = Set.of(
+            "/health",
+            "/actuator/health",
+            "/api/health",
+            "/api/actuator/health"
+    );
     private static final String DEV_UID_HEADER = "X-Dev-Firebase-Uid";
     private static final String DEV_EMAIL_HEADER = "X-Dev-Email";
     private static final String DEV_ROLE_HEADER = "X-Dev-Role";
@@ -37,17 +42,17 @@ public class DevAuthFilter extends OncePerRequestFilter {
             FilterChain filterChain
     ) throws ServletException, IOException {
         if (!isPublicEndpoint(request.getRequestURI())
+                && !isAuthEndpoint(request.getRequestURI())
                 && SecurityContextHolder.getContext().getAuthentication() == null) {
             UserPrincipal user = UserPrincipal.builder()
                     .firebaseUid(resolveValue(request.getHeader(DEV_UID_HEADER), firebaseConfig.getDevDefaultUid()))
                     .email(resolveValue(request.getHeader(DEV_EMAIL_HEADER), firebaseConfig.getDevDefaultEmail()))
                     .role(resolveValue(request.getHeader(DEV_ROLE_HEADER), firebaseConfig.getDevDefaultRole()))
-                    .token("dev-auth")
                     .claims(Map.of("mode", "dev"))
                     .build();
 
             UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken(user, user.getToken(), user.getAuthorities());
+                    new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities());
             SecurityContextHolder.getContext().setAuthentication(authentication);
         }
 
@@ -56,6 +61,10 @@ public class DevAuthFilter extends OncePerRequestFilter {
 
     private boolean isPublicEndpoint(String path) {
         return PUBLIC_ENDPOINT_SUFFIXES.stream().anyMatch(path::endsWith);
+    }
+
+    private boolean isAuthEndpoint(String path) {
+        return path.endsWith("/auth") || path.contains("/auth/");
     }
 
     private String resolveValue(String headerValue, String fallbackValue) {

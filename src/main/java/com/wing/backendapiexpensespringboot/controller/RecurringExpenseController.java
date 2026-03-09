@@ -26,16 +26,21 @@ public class RecurringExpenseController {
             @AuthenticationPrincipal UserPrincipal user,
             @RequestParam(defaultValue = "0") int offset,
             @RequestParam(defaultValue = "50") int limit,
-            @RequestParam(defaultValue = "false") boolean includeArchived
-    ) {
+            @RequestParam(defaultValue = "false") boolean includeArchived) {
         return ResponseEntity.ok(
                 recurringExpenseQueryService.getRecurringExpenses(
                         requireFirebaseUid(user),
                         offset,
                         limit,
-                        includeArchived
-                )
-        );
+                        includeArchived));
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<RecurringExpenseDto> getRecurringExpense(
+            @AuthenticationPrincipal UserPrincipal user,
+            @org.springframework.web.bind.annotation.PathVariable("id") java.util.UUID id) {
+        return ResponseEntity.ok(
+                recurringExpenseQueryService.getRecurringExpenseById(requireFirebaseUid(user), id));
     }
 
     private String requireFirebaseUid(UserPrincipal user) {

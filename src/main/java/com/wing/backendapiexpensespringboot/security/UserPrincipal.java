@@ -19,7 +19,6 @@ public class UserPrincipal {
     private String firebaseUid;
     private String email;
     private String role;
-    private String token;
     private Map<String, Object> claims;
 
     public List<GrantedAuthority> getAuthorities() {

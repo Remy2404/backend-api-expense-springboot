@@ -16,6 +16,19 @@ import java.util.UUID;
 public class ExpenseFilterQueryService {
 
     private final ExpenseService expenseService;
+    private static final Comparator<ExpenseEntity> RECENT_FIRST = Comparator
+            .comparing(
+                    ExpenseEntity::getDate,
+                    Comparator.nullsLast(Comparator.reverseOrder()))
+            .thenComparing(
+                    ExpenseEntity::getUpdatedAt,
+                    Comparator.nullsLast(Comparator.reverseOrder()))
+            .thenComparing(
+                    ExpenseEntity::getCreatedAt,
+                    Comparator.nullsLast(Comparator.reverseOrder()))
+            .thenComparing(
+                    ExpenseEntity::getId,
+                    Comparator.nullsLast(Comparator.reverseOrder()));
 
     public List<ExpenseListItemDto> getFilteredExpenses(
             String firebaseUid,
@@ -53,23 +66,7 @@ public class ExpenseFilterQueryService {
                 .filter(e -> merchant == null || merchant.isBlank() || containsIgnoreCase(e.getMerchant(), merchant))
                 .filter(e -> minAmount == null || e.getAmount() >= minAmount)
                 .filter(e -> maxAmount == null || e.getAmount() <= maxAmount)
-                .sorted(
-                        Comparator.comparing(
-                                        ExpenseEntity::getCreatedAt,
-                                        Comparator.nullsLast(Comparator.naturalOrder()))
-                                .reversed()
-                                .thenComparing(
-                                        ExpenseEntity::getUpdatedAt,
-                                        Comparator.nullsLast(Comparator.naturalOrder()))
-                                .reversed()
-                                .thenComparing(
-                                        ExpenseEntity::getDate,
-                                        Comparator.nullsLast(Comparator.naturalOrder()))
-                                .reversed()
-                                .thenComparing(
-                                        ExpenseEntity::getId,
-                                        Comparator.nullsLast(Comparator.naturalOrder()))
-                                .reversed())
+                .sorted(RECENT_FIRST)
                 .toList();
 
         return QueryPagination.slice(filtered, offset, limit).stream()

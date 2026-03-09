@@ -26,11 +26,25 @@ public class SavingsGoalController {
             @AuthenticationPrincipal UserPrincipal user,
             @RequestParam(defaultValue = "0") int offset,
             @RequestParam(defaultValue = "50") int limit,
-            @RequestParam(defaultValue = "false") boolean includeArchived
-    ) {
+            @RequestParam(defaultValue = "false") boolean includeArchived) {
         return ResponseEntity.ok(
-                savingsGoalQueryService.getGoals(requireFirebaseUid(user), offset, limit, includeArchived)
-        );
+                savingsGoalQueryService.getGoals(requireFirebaseUid(user), offset, limit, includeArchived));
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<SavingsGoalDto> getGoal(
+            @AuthenticationPrincipal UserPrincipal user,
+            @org.springframework.web.bind.annotation.PathVariable("id") java.util.UUID id) {
+        return ResponseEntity.ok(
+                savingsGoalQueryService.getGoalById(requireFirebaseUid(user), id));
+    }
+
+    @GetMapping("/{id}/transactions")
+    public ResponseEntity<List<com.wing.backendapiexpensespringboot.dto.GoalTransactionDto>> getGoalTransactions(
+            @AuthenticationPrincipal UserPrincipal user,
+            @org.springframework.web.bind.annotation.PathVariable("id") java.util.UUID id) {
+        return ResponseEntity.ok(
+                savingsGoalQueryService.getGoalTransactions(requireFirebaseUid(user), id));
     }
 
     private String requireFirebaseUid(UserPrincipal user) {

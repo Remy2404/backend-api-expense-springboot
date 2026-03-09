@@ -50,8 +50,7 @@ public class ExpenseController {
             @RequestParam(required = false) String categoryId,
             @RequestParam(required = false) String merchant,
             @RequestParam(required = false) Double minAmount,
-            @RequestParam(required = false) Double maxAmount
-    ) {
+            @RequestParam(required = false) Double maxAmount) {
         return ResponseEntity.ok(expenseFilterQueryService.getFilteredExpenses(
                 requireFirebaseUid(user),
                 offset,
@@ -62,15 +61,23 @@ public class ExpenseController {
                 parseUuid(categoryId, "categoryId"),
                 merchant,
                 minAmount,
-                maxAmount
-        ));
+                maxAmount));
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<ExpenseListItemDto> getExpense(
+            @AuthenticationPrincipal UserPrincipal user,
+            @PathVariable("id") String expenseIdRaw) {
+        UUID expenseId = parseUuid(expenseIdRaw, "id");
+        String firebaseUid = requireFirebaseUid(user);
+        ExpenseEntity expense = expenseService.getExpenseById(firebaseUid, expenseId);
+        return ResponseEntity.ok(toDto(expense));
     }
 
     @PostMapping
     public ResponseEntity<ExpenseListItemDto> createExpense(
             @AuthenticationPrincipal UserPrincipal user,
-            @RequestBody ExpenseMutationRequestDto request
-    ) {
+            @RequestBody ExpenseMutationRequestDto request) {
         String firebaseUid = requireFirebaseUid(user);
         ExpenseEntity created = expenseService.createExpense(firebaseUid, request);
         realtimeRelayService.publishSyncInvalidation(firebaseUid, List.of("expenses"), "expense_created");
@@ -81,8 +88,7 @@ public class ExpenseController {
     public ResponseEntity<ExpenseListItemDto> updateExpense(
             @AuthenticationPrincipal UserPrincipal user,
             @PathVariable("id") String expenseIdRaw,
-            @RequestBody ExpenseMutationRequestDto request
-    ) {
+            @RequestBody ExpenseMutationRequestDto request) {
         UUID expenseId = parseUuid(expenseIdRaw, "id");
         String firebaseUid = requireFirebaseUid(user);
         ExpenseEntity updated = expenseService.updateExpense(firebaseUid, expenseId, request);
@@ -93,8 +99,7 @@ public class ExpenseController {
     @DeleteMapping("/{id}")
     public ResponseEntity<ExpenseListItemDto> deleteExpense(
             @AuthenticationPrincipal UserPrincipal user,
-            @PathVariable("id") String expenseIdRaw
-    ) {
+            @PathVariable("id") String expenseIdRaw) {
         UUID expenseId = parseUuid(expenseIdRaw, "id");
         String firebaseUid = requireFirebaseUid(user);
         ExpenseEntity deleted = expenseService.softDeleteExpense(firebaseUid, expenseId);
@@ -153,7 +158,8 @@ public class ExpenseController {
                 .transactionType(entity.getTransactionType())
                 .currency(entity.getCurrency())
                 .merchant(entity.getMerchant())
-                .date(entity.getDate() == null ? null : entity.getDate().withOffsetSameInstant(ZoneOffset.UTC).toString())
+                .date(entity.getDate() == null ? null
+                        : entity.getDate().withOffsetSameInstant(ZoneOffset.UTC).toString())
                 .note(entity.getNote())
                 .noteSummary(entity.getNoteSummary())
                 .categoryId(entity.getCategoryId())
