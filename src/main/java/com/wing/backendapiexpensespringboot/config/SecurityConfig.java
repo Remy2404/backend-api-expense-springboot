@@ -1,7 +1,6 @@
 package com.wing.backendapiexpensespringboot.config;
 
 import com.wing.backendapiexpensespringboot.security.FirebaseAuthFilter;
-import com.wing.backendapiexpensespringboot.security.DevAuthFilter;
 import com.wing.backendapiexpensespringboot.security.JsonAuthenticationEntryPoint;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
@@ -31,7 +30,6 @@ import java.util.stream.Collectors;
 public class SecurityConfig {
 
     private final ObjectProvider<FirebaseAuthFilter> firebaseAuthFilterProvider;
-    private final ObjectProvider<DevAuthFilter> devAuthFilterProvider;
     private final AppConfig appConfig;
     private final JsonAuthenticationEntryPoint jsonAuthenticationEntryPoint;
 
@@ -51,11 +49,6 @@ public class SecurityConfig {
         FirebaseAuthFilter firebaseAuthFilter = firebaseAuthFilterProvider.getIfAvailable();
         if (firebaseAuthFilter != null) {
             http.addFilterBefore(firebaseAuthFilter, UsernamePasswordAuthenticationFilter.class);
-        } else {
-            DevAuthFilter devAuthFilter = devAuthFilterProvider.getIfAvailable();
-            if (devAuthFilter != null) {
-                http.addFilterBefore(devAuthFilter, UsernamePasswordAuthenticationFilter.class);
-            }
         }
 
         return http.build();
@@ -81,7 +74,8 @@ public class SecurityConfig {
         }
 
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Cache-Control", "Content-Type", "X-Requested-With"));
+        configuration
+                .setAllowedHeaders(Arrays.asList("Authorization", "Cache-Control", "Content-Type", "X-Requested-With"));
         configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

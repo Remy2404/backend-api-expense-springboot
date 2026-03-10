@@ -58,6 +58,28 @@ class SyncControllerTest {
     }
 
     @Test
+    void pushAcceptsExplicitNullCollections() throws Exception {
+        when(syncService.push(eq(FIREBASE_UID), any(SyncPushRequestDto.class)))
+                .thenReturn(SyncPushResponseDto.empty());
+
+        mockMvc.perform(post("/sync/push")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "expenses": null,
+                                  "categories": null,
+                                  "budgets": null,
+                                  "goals": null,
+                                  "recurring": null
+                                }
+                                """)
+                        .with(authenticatedUser()))
+                .andExpect(status().isOk());
+
+        verify(syncService).push(eq(FIREBASE_UID), any(SyncPushRequestDto.class));
+    }
+
+    @Test
     void pullDelegatesToService() throws Exception {
         when(syncService.pull(
                 eq(FIREBASE_UID),

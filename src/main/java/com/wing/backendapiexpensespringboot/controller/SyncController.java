@@ -22,6 +22,7 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.List;
 
 @RestController
 @RequestMapping("/sync")
@@ -43,19 +44,19 @@ public class SyncController {
         SyncPushResponseDto response = syncService.push(firebaseUid, safeRequest);
 
         java.util.ArrayList<String> changedEntities = new java.util.ArrayList<>();
-        if (!safeRequest.getExpenses().isEmpty()) {
+        if (hasItems(safeRequest.getExpenses())) {
             changedEntities.add("expenses");
         }
-        if (!safeRequest.getCategories().isEmpty()) {
+        if (hasItems(safeRequest.getCategories())) {
             changedEntities.add("categories");
         }
-        if (!safeRequest.getBudgets().isEmpty()) {
+        if (hasItems(safeRequest.getBudgets())) {
             changedEntities.add("budgets");
         }
-        if (!safeRequest.getGoals().isEmpty()) {
+        if (hasItems(safeRequest.getGoals())) {
             changedEntities.add("goals");
         }
-        if (!safeRequest.getRecurring().isEmpty()) {
+        if (hasItems(safeRequest.getRecurring())) {
             changedEntities.add("recurring");
         }
 
@@ -112,5 +113,9 @@ public class SyncController {
         }
 
         throw AppException.badRequest(fieldName + " must be a valid ISO datetime");
+    }
+
+    private boolean hasItems(List<?> items) {
+        return items != null && !items.isEmpty();
     }
 }
