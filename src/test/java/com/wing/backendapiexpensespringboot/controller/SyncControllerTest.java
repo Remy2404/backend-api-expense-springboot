@@ -5,6 +5,7 @@ import com.wing.backendapiexpensespringboot.dto.SyncPushRequestDto;
 import com.wing.backendapiexpensespringboot.dto.SyncPushResponseDto;
 import com.wing.backendapiexpensespringboot.security.FirebaseAuthFilter;
 import com.wing.backendapiexpensespringboot.security.UserPrincipal;
+import com.wing.backendapiexpensespringboot.service.RealtimeRelayService;
 import com.wing.backendapiexpensespringboot.service.SyncService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,6 +43,9 @@ class SyncControllerTest {
 
     @MockBean
     private FirebaseAuthFilter firebaseAuthFilter;
+
+    @MockBean
+    private RealtimeRelayService realtimeRelayService;
 
     @Test
     void pushDelegatesToService() throws Exception {
@@ -106,6 +110,32 @@ class SyncControllerTest {
                 eq(LocalDateTime.of(2026, 3, 1, 10, 2, 0)),
                 eq(LocalDateTime.of(2026, 3, 1, 10, 3, 0)),
                 eq(LocalDateTime.of(2026, 3, 1, 10, 4, 0))
+        );
+    }
+
+    @Test
+    void pullNormalizesOffsetDateTimeToUtc() throws Exception {
+        when(syncService.pull(
+                eq(FIREBASE_UID),
+                eq(LocalDateTime.of(2026, 3, 1, 10, 0, 0)),
+                any(LocalDateTime.class),
+                any(LocalDateTime.class),
+                any(LocalDateTime.class),
+                any(LocalDateTime.class)
+        )).thenReturn(SyncPullResponseDto.empty());
+
+        mockMvc.perform(get("/sync/pull")
+                        .param("expense_since", "2026-03-01T17:00:00+07:00")
+                        .with(authenticatedUser()))
+                .andExpect(status().isOk());
+
+        verify(syncService).pull(
+                eq(FIREBASE_UID),
+                eq(LocalDateTime.of(2026, 3, 1, 10, 0, 0)),
+                any(LocalDateTime.class),
+                any(LocalDateTime.class),
+                any(LocalDateTime.class),
+                any(LocalDateTime.class)
         );
     }
 

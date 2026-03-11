@@ -1,7 +1,6 @@
 package com.wing.backendapiexpensespringboot.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.firebase.auth.FirebaseAuth;
 import com.wing.backendapiexpensespringboot.exception.AppException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -48,7 +47,7 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
         }
 
         try {
-            UserPrincipal user = firebaseAuthenticationService.authenticate(idToken, false).principal();
+            UserPrincipal user = firebaseAuthenticationService.authenticate(idToken, true).principal();
             UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(user, null,
                     user.getAuthorities());
             authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));

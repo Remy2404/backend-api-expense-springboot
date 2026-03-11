@@ -28,7 +28,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Locale;
@@ -516,7 +515,7 @@ public class SyncService {
                 .setParameter("id", id)
                 .setParameter("firebaseUid", firebaseUid)
                 .setParameter("amount", BigDecimal.ZERO)
-                .setParameter("dateValue", LocalDateTime.now())
+                .setParameter("dateValue", utcNow())
                 .setParameter("transactionType", "EXPENSE")
                 .executeUpdate();
     }
@@ -559,8 +558,8 @@ public class SyncService {
                 .setParameter("firebaseUid", firebaseUid)
                 .setParameter("amount", BigDecimal.ZERO)
                 .setParameter("frequency", "monthly")
-                .setParameter("startDate", LocalDateTime.now())
-                .setParameter("nextDueDate", LocalDateTime.now())
+                .setParameter("startDate", utcNow())
+                .setParameter("nextDueDate", utcNow())
                 .executeUpdate();
     }
 
@@ -585,7 +584,7 @@ public class SyncService {
                     .budgetId(budgetId)
                     .categoryId(categoryId)
                     .amount(toBigDecimal(item.getAmount()))
-                    .syncedAt(LocalDateTime.now())
+                    .syncedAt(utcNow())
                     .syncStatus("synced")
                     .build();
             categoryBudgetRepository.save(entity);
@@ -814,7 +813,7 @@ public class SyncService {
 
     private LocalDateTime resolveDateTimeOrNow(String raw) {
         LocalDateTime parsed = parseDateTime(raw);
-        return parsed == null ? LocalDateTime.now() : parsed;
+        return parsed == null ? utcNow() : parsed;
     }
 
     private LocalDateTime resolveCreatedAt(LocalDateTime existing, String incoming) {
@@ -822,12 +821,12 @@ public class SyncService {
             return existing;
         }
         LocalDateTime parsed = parseDateTime(incoming);
-        return parsed == null ? LocalDateTime.now() : parsed;
+        return parsed == null ? utcNow() : parsed;
     }
 
     private LocalDateTime resolveUpdatedAt(String incoming) {
         LocalDateTime parsed = parseDateTime(incoming);
-        return parsed == null ? LocalDateTime.now() : parsed;
+        return parsed == null ? utcNow() : parsed;
     }
 
     private LocalDateTime parseDateTime(String raw) {
@@ -836,7 +835,7 @@ public class SyncService {
         }
         try {
             return OffsetDateTime.parse(raw)
-                    .atZoneSameInstant(ZoneId.systemDefault())
+                    .withOffsetSameInstant(ZoneOffset.UTC)
                     .toLocalDateTime();
         } catch (Exception ignored) {
         }
@@ -846,7 +845,7 @@ public class SyncService {
         }
         try {
             return Instant.parse(raw)
-                    .atZone(ZoneId.systemDefault())
+                    .atOffset(ZoneOffset.UTC)
                     .toLocalDateTime();
         } catch (Exception ignored) {
         }
@@ -857,10 +856,7 @@ public class SyncService {
         if (value == null) {
             return null;
         }
-        return value.atZone(ZoneId.systemDefault())
-                .withZoneSameInstant(ZoneOffset.UTC)
-                .toOffsetDateTime()
-                .toString();
+        return value.atOffset(ZoneOffset.UTC).toString();
     }
 
     private String formatOffsetDateTime(OffsetDateTime value) {
@@ -880,6 +876,10 @@ public class SyncService {
 
     private BigDecimal toBigDecimalNullable(Double value) {
         return value == null ? null : BigDecimal.valueOf(value);
+    }
+
+    private LocalDateTime utcNow() {
+        return LocalDateTime.now(ZoneOffset.UTC);
     }
 
     private <T> List<T> safeList(List<T> items) {

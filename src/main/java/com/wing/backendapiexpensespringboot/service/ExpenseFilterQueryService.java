@@ -18,13 +18,13 @@ public class ExpenseFilterQueryService {
     private final ExpenseService expenseService;
     private static final Comparator<ExpenseEntity> RECENT_FIRST = Comparator
             .comparing(
-                    ExpenseEntity::getDate,
-                    Comparator.nullsLast(Comparator.reverseOrder()))
-            .thenComparing(
                     ExpenseEntity::getUpdatedAt,
                     Comparator.nullsLast(Comparator.reverseOrder()))
             .thenComparing(
                     ExpenseEntity::getCreatedAt,
+                    Comparator.nullsLast(Comparator.reverseOrder()))
+            .thenComparing(
+                    ExpenseEntity::getDate,
                     Comparator.nullsLast(Comparator.reverseOrder()))
             .thenComparing(
                     ExpenseEntity::getId,

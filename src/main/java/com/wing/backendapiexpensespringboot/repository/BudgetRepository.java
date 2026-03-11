@@ -18,6 +18,16 @@ public interface BudgetRepository extends JpaRepository<BudgetEntity, UUID> {
 
   Optional<BudgetEntity> findByMonthAndFirebaseUid(String month, String firebaseUid);
 
+  @Query("""
+      SELECT b FROM BudgetEntity b
+      WHERE b.month = :month
+        AND b.firebaseUid = :firebaseUid
+        AND COALESCE(b.isDeleted, false) = false
+      """)
+  Optional<BudgetEntity> findActiveByMonthAndFirebaseUid(
+      @Param("month") String month,
+      @Param("firebaseUid") String firebaseUid);
+
   @Query("SELECT b FROM BudgetEntity b WHERE b.firebaseUid = :firebaseUid AND COALESCE(b.isDeleted, false) = false ORDER BY b.month DESC")
   List<BudgetEntity> findActiveByFirebaseUidOrderByMonthDesc(@Param("firebaseUid") String firebaseUid);
 

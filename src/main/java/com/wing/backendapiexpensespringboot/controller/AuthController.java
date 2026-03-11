@@ -32,8 +32,11 @@ public class AuthController {
 
     @GetMapping("/session")
     public ResponseEntity<AuthSessionResponse> getSession(HttpServletRequest request) {
-        String idToken = authCookieService.readAccessToken(request)
-                .orElseThrow(() -> AppException.unauthorized("Missing authentication cookie."));
+        String idToken = authCookieService.readAccessToken(request).orElse(null);
+        if (idToken == null) {
+            return ResponseEntity.ok(AuthSessionResponse.builder().build());
+        }
+
         AuthenticatedFirebaseUser authenticatedUser = firebaseAuthenticationService.authenticate(idToken, false);
         return ResponseEntity.ok(toSessionResponse(
                 authenticatedUser,

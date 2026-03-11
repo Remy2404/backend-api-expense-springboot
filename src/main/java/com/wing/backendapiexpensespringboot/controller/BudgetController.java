@@ -1,9 +1,11 @@
 package com.wing.backendapiexpensespringboot.controller;
 
 import com.wing.backendapiexpensespringboot.dto.BudgetDto;
+import com.wing.backendapiexpensespringboot.dto.BudgetSummaryResponseDto;
 import com.wing.backendapiexpensespringboot.exception.AppException;
 import com.wing.backendapiexpensespringboot.security.UserPrincipal;
 import com.wing.backendapiexpensespringboot.service.BudgetQueryService;
+import com.wing.backendapiexpensespringboot.service.BudgetSummaryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -20,6 +22,7 @@ import java.util.List;
 public class BudgetController {
 
     private final BudgetQueryService budgetQueryService;
+    private final BudgetSummaryService budgetSummaryService;
 
     @GetMapping
     public ResponseEntity<List<BudgetDto>> listBudgets(
@@ -45,6 +48,14 @@ public class BudgetController {
             @org.springframework.web.bind.annotation.PathVariable("month") String month) {
         return ResponseEntity.ok(
                 budgetQueryService.getBudgetByMonth(requireFirebaseUid(user), month));
+    }
+
+    @GetMapping("/summary")
+    public ResponseEntity<BudgetSummaryResponseDto> getBudgetSummary(
+            @AuthenticationPrincipal UserPrincipal user,
+            @RequestParam(name = "month") String month) {
+        return ResponseEntity.ok(
+                budgetSummaryService.getBudgetSummary(requireFirebaseUid(user), month));
     }
 
     private String requireFirebaseUid(UserPrincipal user) {
