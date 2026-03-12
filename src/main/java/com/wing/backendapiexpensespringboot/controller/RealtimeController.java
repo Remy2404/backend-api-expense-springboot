@@ -23,10 +23,11 @@ public class RealtimeController {
     @GetMapping("/session")
     public ResponseEntity<RealtimeSessionResponse> session(@AuthenticationPrincipal UserPrincipal user) {
         String firebaseUid = requireFirebaseUid(user);
+        String socketUrl = resolveSocketUrl();
         long expiresAt = realtimeTokenService.expiresAtEpochSeconds();
         return ResponseEntity.ok(RealtimeSessionResponse.builder()
                 .token(realtimeTokenService.issueToken(firebaseUid))
-                .socketUrl(realtimeConfig.getPublicSocketUrl())
+                .socketUrl(socketUrl)
                 .expiresAtEpochSeconds(expiresAt)
                 .build());
     }
@@ -36,5 +37,17 @@ public class RealtimeController {
             throw AppException.unauthorized("Missing authenticated user");
         }
         return user.getFirebaseUid();
+    }
+
+    private String resolveSocketUrl() {
+        String publicSocketUrl = realtimeConfig.getPublicSocketUrl();
+        if (publicSocketUrl != null && !publicSocketUrl.isBlank()) {
+            return publicSocketUrl;
+        }
+        String relayUrl = realtimeConfig.getRelayUrl();
+        if (relayUrl != null && !relayUrl.isBlank()) {
+            return relayUrl;
+        }
+        throw AppException.badRequest("Realtime socket URL is not configured");
     }
 }

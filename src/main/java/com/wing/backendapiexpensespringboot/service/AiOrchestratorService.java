@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.util.*;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -67,6 +68,8 @@ public class AiOrchestratorService {
             - CATEGORY RULES: Use closest match from available categories: %s. Return empty string if missing.
             - AMOUNT RULES: Never guess. Return 0.0 if missing.
             """;
+
+    private static final Pattern AMOUNT_TOKEN_PATTERN = Pattern.compile("(^|\\s)[$€£¥₹]?\\d+(?:[.,]\\d+)?(\\s|$)");
 
     public ParseResponse parse(String firebaseUid, ParseRequest request) {
         log.info("Parsing expense for user: {}", firebaseUid);
@@ -437,7 +440,16 @@ public class AiOrchestratorService {
 
         // Add-expense signals
         if (lower.contains("add") || lower.contains("record") || lower.contains("log")
-                || lower.contains("save") || lower.contains("spent") || lower.contains("paid")) {
+                || lower.contains("save") || lower.contains("spent") || lower.contains("paid")
+                || lower.contains("income") || lower.contains("expense")
+                || lower.contains("earned") || lower.contains("received")
+                || lower.contains("salary") || lower.contains("bonus")
+                || lower.contains("refund") || lower.contains("reimbursement")) {
+            return "add_expense";
+        }
+
+        // Bare transaction statements like "$2.5 entertainment income"
+        if (AMOUNT_TOKEN_PATTERN.matcher(lower).find()) {
             return "add_expense";
         }
 
