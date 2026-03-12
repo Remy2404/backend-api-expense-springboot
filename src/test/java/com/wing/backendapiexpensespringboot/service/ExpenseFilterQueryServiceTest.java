@@ -2,6 +2,7 @@ package com.wing.backendapiexpensespringboot.service;
 
 import com.wing.backendapiexpensespringboot.dto.ExpenseListItemDto;
 import com.wing.backendapiexpensespringboot.model.ExpenseEntity;
+import com.wing.backendapiexpensespringboot.service.media.ImageKitMediaService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -22,6 +23,9 @@ class ExpenseFilterQueryServiceTest {
 
     @Mock
     private ExpenseService expenseService;
+
+    @Mock
+    private ImageKitMediaService imageKitMediaService;
 
     @InjectMocks
     private ExpenseFilterQueryService expenseFilterQueryService;

@@ -5,6 +5,8 @@ import com.wing.backendapiexpensespringboot.security.FirebaseAuthFilter;
 import com.wing.backendapiexpensespringboot.security.UserPrincipal;
 import com.wing.backendapiexpensespringboot.service.ExpenseFilterQueryService;
 import com.wing.backendapiexpensespringboot.service.ExpenseService;
+import com.wing.backendapiexpensespringboot.service.RealtimeRelayService;
+import com.wing.backendapiexpensespringboot.service.media.ImageKitMediaService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -39,6 +41,12 @@ class ExpenseControllerTest {
 
     @MockBean
     private ExpenseService expenseService;
+
+    @MockBean
+    private RealtimeRelayService realtimeRelayService;
+
+    @MockBean
+    private ImageKitMediaService imageKitMediaService;
 
     @MockBean
     private FirebaseAuthFilter firebaseAuthFilter;

@@ -4,6 +4,7 @@ import com.wing.backendapiexpensespringboot.dto.ExpenseMutationRequestDto;
 import com.wing.backendapiexpensespringboot.exception.AppException;
 import com.wing.backendapiexpensespringboot.model.ExpenseEntity;
 import com.wing.backendapiexpensespringboot.repository.ExpenseRepository;
+import com.wing.backendapiexpensespringboot.service.media.ImageKitMediaService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -26,6 +27,7 @@ import java.util.UUID;
 public class ExpenseService {
 
     private final ExpenseRepository expenseRepository;
+    private final ImageKitMediaService imageKitMediaService;
 
     public List<ExpenseEntity> getExpenses(String firebaseUid) {
         return expenseRepository.findByFirebaseUidOrderByDateDesc(firebaseUid);
@@ -89,7 +91,7 @@ public class ExpenseService {
                 .noteSummary(request.getNoteSummary())
                 .categoryId(parseUuidOrNull(request.getCategoryId()))
                 .recurringExpenseId(parseUuidOrNull(request.getRecurringExpenseId()))
-                .receiptPaths(request.getReceiptPaths())
+                .receiptPaths(imageKitMediaService.normalizeIncomingReceiptPaths(firebaseUid, request.getReceiptPaths()))
                 .originalAmount(toBigDecimalNullable(request.getOriginalAmount()))
                 .exchangeRate(toBigDecimalNullable(request.getExchangeRate()))
                 .rateSource(request.getRateSource())
@@ -144,7 +146,7 @@ public class ExpenseService {
             expense.setRecurringExpenseId(parseUuidOrNull(request.getRecurringExpenseId()));
         }
         if (request.getReceiptPaths() != null) {
-            expense.setReceiptPaths(request.getReceiptPaths());
+            expense.setReceiptPaths(imageKitMediaService.normalizeIncomingReceiptPaths(firebaseUid, request.getReceiptPaths()));
         }
         if (request.getOriginalAmount() != null) {
             expense.setOriginalAmount(toBigDecimalNullable(request.getOriginalAmount()));

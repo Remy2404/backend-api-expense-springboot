@@ -2,6 +2,7 @@ package com.wing.backendapiexpensespringboot.service;
 
 import com.wing.backendapiexpensespringboot.dto.ExpenseListItemDto;
 import com.wing.backendapiexpensespringboot.model.ExpenseEntity;
+import com.wing.backendapiexpensespringboot.service.media.ImageKitMediaService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -16,6 +17,7 @@ import java.util.UUID;
 public class ExpenseFilterQueryService {
 
     private final ExpenseService expenseService;
+    private final ImageKitMediaService imageKitMediaService;
     private static final Comparator<ExpenseEntity> RECENT_FIRST = Comparator
             .comparing(
                     ExpenseEntity::getUpdatedAt,
@@ -109,7 +111,7 @@ public class ExpenseFilterQueryService {
                 .noteSummary(entity.getNoteSummary())
                 .categoryId(entity.getCategoryId())
                 .recurringExpenseId(entity.getRecurringExpenseId())
-                .receiptPaths(entity.getReceiptPaths())
+                .receiptPaths(imageKitMediaService.toDisplayReceiptUrls(entity.getReceiptPaths()))
                 .originalAmount(entity.getOriginalAmount() == null ? null : entity.getOriginalAmount().doubleValue())
                 .exchangeRate(entity.getExchangeRate() == null ? null : entity.getExchangeRate().doubleValue())
                 .rateSource(entity.getRateSource())

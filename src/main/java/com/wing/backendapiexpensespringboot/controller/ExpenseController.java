@@ -8,6 +8,7 @@ import com.wing.backendapiexpensespringboot.security.UserPrincipal;
 import com.wing.backendapiexpensespringboot.service.ExpenseFilterQueryService;
 import com.wing.backendapiexpensespringboot.service.ExpenseService;
 import com.wing.backendapiexpensespringboot.service.RealtimeRelayService;
+import com.wing.backendapiexpensespringboot.service.media.ImageKitMediaService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -38,6 +39,7 @@ public class ExpenseController {
     private final ExpenseFilterQueryService expenseFilterQueryService;
     private final ExpenseService expenseService;
     private final RealtimeRelayService realtimeRelayService;
+    private final ImageKitMediaService imageKitMediaService;
 
     @GetMapping
     public ResponseEntity<List<ExpenseListItemDto>> listExpenses(
@@ -164,7 +166,7 @@ public class ExpenseController {
                 .noteSummary(entity.getNoteSummary())
                 .categoryId(entity.getCategoryId())
                 .recurringExpenseId(entity.getRecurringExpenseId())
-                .receiptPaths(entity.getReceiptPaths())
+                .receiptPaths(imageKitMediaService.toDisplayReceiptUrls(entity.getReceiptPaths()))
                 .originalAmount(entity.getOriginalAmount() == null ? null : entity.getOriginalAmount().doubleValue())
                 .exchangeRate(entity.getExchangeRate() == null ? null : entity.getExchangeRate().doubleValue())
                 .rateSource(entity.getRateSource())

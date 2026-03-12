@@ -17,6 +17,7 @@ import com.wing.backendapiexpensespringboot.repository.ExpenseRepository;
 import com.wing.backendapiexpensespringboot.repository.GoalTransactionRepository;
 import com.wing.backendapiexpensespringboot.repository.RecurringExpenseRepository;
 import com.wing.backendapiexpensespringboot.repository.SavingsGoalRepository;
+import com.wing.backendapiexpensespringboot.service.media.ImageKitMediaService;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -46,6 +47,7 @@ public class SyncService {
     private final SavingsGoalRepository savingsGoalRepository;
     private final GoalTransactionRepository goalTransactionRepository;
     private final RecurringExpenseRepository recurringExpenseRepository;
+    private final ImageKitMediaService imageKitMediaService;
     private final EntityManager entityManager;
 
     @Transactional
@@ -298,7 +300,7 @@ public class SyncService {
             entity.setAiSource(item.getAiSource());
             entity.setAiLastUpdated(parseDateTime(item.getAiLastUpdated()));
             entity.setRecurringExpenseId(parseUuid(item.getRecurringExpenseId()));
-            entity.setReceiptPaths(item.getReceiptPaths());
+            entity.setReceiptPaths(imageKitMediaService.normalizeIncomingReceiptPaths(firebaseUid, item.getReceiptPaths()));
             entity.setCurrency(normalizeText(item.getCurrency(), "USD"));
             entity.setOriginalAmount(toBigDecimalNullable(item.getOriginalAmount()));
             entity.setExchangeRate(toBigDecimalNullable(item.getExchangeRate()));
@@ -629,7 +631,8 @@ public class SyncService {
                 .aiSource(entity.getAiSource())
                 .aiLastUpdated(formatDateTime(entity.getAiLastUpdated()))
                 .recurringExpenseId(toString(entity.getRecurringExpenseId()))
-                .receiptPaths(entity.getReceiptPaths() == null ? List.of() : entity.getReceiptPaths())
+                .receiptPaths(imageKitMediaService.toDisplayReceiptUrls(
+                        entity.getReceiptPaths() == null ? List.of() : entity.getReceiptPaths()))
                 .currency(entity.getCurrency())
                 .originalAmount(entity.getOriginalAmount() == null ? null : entity.getOriginalAmount().doubleValue())
                 .exchangeRate(entity.getExchangeRate() == null ? null : entity.getExchangeRate().doubleValue())
