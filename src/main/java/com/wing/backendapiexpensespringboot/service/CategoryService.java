@@ -19,7 +19,7 @@ public class CategoryService {
     private final CategoryRepository categoryRepository;
 
     public List<CategoryEntity> getCategories(String firebaseUid) {
-        return categoryRepository.findByFirebaseUidOrderByNameAsc(firebaseUid);
+        return categoryRepository.findActiveByFirebaseUidOrderByNameAsc(firebaseUid);
     }
 
     public List<CategoryEntity> getCategoriesByType(String firebaseUid, CategoryType categoryType) {

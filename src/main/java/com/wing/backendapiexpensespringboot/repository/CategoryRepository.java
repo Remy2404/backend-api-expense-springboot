@@ -16,6 +16,14 @@ public interface CategoryRepository extends JpaRepository<CategoryEntity, UUID> 
 
     List<CategoryEntity> findByFirebaseUidOrderByNameAsc(String firebaseUid);
 
+                @Query("""
+                                                SELECT c FROM CategoryEntity c
+                                                WHERE c.firebaseUid = :firebaseUid
+                                                        AND COALESCE(c.isDeleted, false) = false
+                                                ORDER BY c.name ASC
+                                                """)
+                List<CategoryEntity> findActiveByFirebaseUidOrderByNameAsc(@Param("firebaseUid") String firebaseUid);
+
     Optional<CategoryEntity> findByIdAndFirebaseUid(UUID id, String firebaseUid);
 
     @Query("""
