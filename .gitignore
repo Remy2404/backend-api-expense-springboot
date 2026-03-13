@@ -35,7 +35,7 @@ application-dev.properties
 google-services.json
 expense-app-b3a77-firebase-adminsdk-fbsvc-22e373e19a.json
 .env
-supabase/
 supabase/*
+supabase/
 supabase/migrations/
 supabase/migrations/*.sql
