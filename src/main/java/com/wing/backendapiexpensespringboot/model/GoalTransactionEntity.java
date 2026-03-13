@@ -12,7 +12,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
@@ -40,5 +40,5 @@ public class GoalTransactionEntity {
     private String note;
 
     @Column(name = "date")
-    private LocalDateTime date;
+    private OffsetDateTime date;
 }

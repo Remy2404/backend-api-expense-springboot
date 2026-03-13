@@ -8,7 +8,8 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -53,7 +54,7 @@ public class MemoryService {
             MemoryEntity memory = existing.get();
             memory.setResolvedCategoryId(correctedCategoryId);
             memory.setOverrideCount(memory.getOverrideCount() + 1);
-            memory.setLastCorrectedAt(LocalDateTime.now());
+            memory.setLastCorrectedAt(OffsetDateTime.now(ZoneOffset.UTC));
             memoryRepository.save(memory);
             return memory.getOverrideCount();
         } else {
@@ -62,8 +63,8 @@ public class MemoryService {
                     .merchant(merchant.toLowerCase().trim())
                     .resolvedCategoryId(correctedCategoryId)
                     .overrideCount(1)
-                    .lastCorrectedAt(LocalDateTime.now())
-                    .createdAt(LocalDateTime.now())
+                    .lastCorrectedAt(OffsetDateTime.now(ZoneOffset.UTC))
+                    .createdAt(OffsetDateTime.now(ZoneOffset.UTC))
                     .build();
             memoryRepository.save(memory);
             return 1;

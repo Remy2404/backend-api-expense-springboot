@@ -17,7 +17,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
@@ -57,8 +58,8 @@ class CategoryControllerTest {
                 .isDefault(false)
                 .categoryType("EXPENSE")
                 .isDeleted(false)
-                .createdAt(LocalDateTime.of(2026, 3, 13, 9, 0, 0))
-                .updatedAt(LocalDateTime.of(2026, 3, 13, 9, 0, 0))
+                .createdAt(OffsetDateTime.of(2026, 3, 13, 9, 0, 0, 0, ZoneOffset.UTC))
+                .updatedAt(OffsetDateTime.of(2026, 3, 13, 9, 0, 0, 0, ZoneOffset.UTC))
                 .build();
 
         CategoryEntity deletedCategory = CategoryEntity.builder()
@@ -70,7 +71,7 @@ class CategoryControllerTest {
                 .isDefault(false)
                 .categoryType("EXPENSE")
                 .isDeleted(true)
-                .deletedAt(LocalDateTime.of(2026, 3, 13, 10, 0, 0))
+                .deletedAt(OffsetDateTime.of(2026, 3, 13, 10, 0, 0, 0, ZoneOffset.UTC))
                 .build();
 
         when(categoryRepository.findActiveByFirebaseUidOrderByNameAsc(FIREBASE_UID))

@@ -8,7 +8,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 
 @Service
 @RequiredArgsConstructor
@@ -26,7 +27,7 @@ public class ProfileProvisioningService {
             String photoUrl,
             AppRole claimedRole
     ) {
-        LocalDateTime now = LocalDateTime.now();
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         ProfileEntity profile = profileRepository.findByFirebaseUid(firebaseUid)
                 .orElseGet(() -> ProfileEntity.builder()
                         .firebaseUid(firebaseUid)
@@ -48,11 +49,15 @@ public class ProfileProvisioningService {
             shouldPersist = true;
         }
         if (profile.getAiEnabled() == null) {
-            profile.setAiEnabled(Boolean.TRUE);
+            profile.setAiEnabled(Boolean.FALSE);
             shouldPersist = true;
         }
         if (!StringUtils.hasText(profile.getRiskLevel())) {
             profile.setRiskLevel(DEFAULT_RISK_LEVEL);
+            shouldPersist = true;
+        }
+        if (!StringUtils.hasText(profile.getSyncStatus())) {
+            profile.setSyncStatus("pending");
             shouldPersist = true;
         }
 

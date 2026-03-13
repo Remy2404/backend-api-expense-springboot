@@ -19,7 +19,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -87,11 +88,11 @@ class SyncControllerTest {
     void pullDelegatesToService() throws Exception {
         when(syncService.pull(
                 eq(FIREBASE_UID),
-                eq(LocalDateTime.of(2026, 3, 1, 10, 0, 0)),
-                eq(LocalDateTime.of(2026, 3, 1, 10, 1, 0)),
-                eq(LocalDateTime.of(2026, 3, 1, 10, 2, 0)),
-                eq(LocalDateTime.of(2026, 3, 1, 10, 3, 0)),
-                eq(LocalDateTime.of(2026, 3, 1, 10, 4, 0))
+                eq(OffsetDateTime.of(2026, 3, 1, 10, 0, 0, 0, ZoneOffset.UTC)),
+                eq(OffsetDateTime.of(2026, 3, 1, 10, 1, 0, 0, ZoneOffset.UTC)),
+                eq(OffsetDateTime.of(2026, 3, 1, 10, 2, 0, 0, ZoneOffset.UTC)),
+                eq(OffsetDateTime.of(2026, 3, 1, 10, 3, 0, 0, ZoneOffset.UTC)),
+                eq(OffsetDateTime.of(2026, 3, 1, 10, 4, 0, 0, ZoneOffset.UTC))
         )).thenReturn(SyncPullResponseDto.empty());
 
         mockMvc.perform(get("/sync/pull")
@@ -105,11 +106,11 @@ class SyncControllerTest {
 
         verify(syncService).pull(
                 eq(FIREBASE_UID),
-                eq(LocalDateTime.of(2026, 3, 1, 10, 0, 0)),
-                eq(LocalDateTime.of(2026, 3, 1, 10, 1, 0)),
-                eq(LocalDateTime.of(2026, 3, 1, 10, 2, 0)),
-                eq(LocalDateTime.of(2026, 3, 1, 10, 3, 0)),
-                eq(LocalDateTime.of(2026, 3, 1, 10, 4, 0))
+                eq(OffsetDateTime.of(2026, 3, 1, 10, 0, 0, 0, ZoneOffset.UTC)),
+                eq(OffsetDateTime.of(2026, 3, 1, 10, 1, 0, 0, ZoneOffset.UTC)),
+                eq(OffsetDateTime.of(2026, 3, 1, 10, 2, 0, 0, ZoneOffset.UTC)),
+                eq(OffsetDateTime.of(2026, 3, 1, 10, 3, 0, 0, ZoneOffset.UTC)),
+                eq(OffsetDateTime.of(2026, 3, 1, 10, 4, 0, 0, ZoneOffset.UTC))
         );
     }
 
@@ -117,11 +118,11 @@ class SyncControllerTest {
     void pullNormalizesOffsetDateTimeToUtc() throws Exception {
         when(syncService.pull(
                 eq(FIREBASE_UID),
-                eq(LocalDateTime.of(2026, 3, 1, 10, 0, 0)),
-                any(LocalDateTime.class),
-                any(LocalDateTime.class),
-                any(LocalDateTime.class),
-                any(LocalDateTime.class)
+                eq(OffsetDateTime.of(2026, 3, 1, 10, 0, 0, 0, ZoneOffset.UTC)),
+                any(OffsetDateTime.class),
+                any(OffsetDateTime.class),
+                any(OffsetDateTime.class),
+                any(OffsetDateTime.class)
         )).thenReturn(SyncPullResponseDto.empty());
 
         mockMvc.perform(get("/sync/pull")
@@ -131,11 +132,11 @@ class SyncControllerTest {
 
         verify(syncService).pull(
                 eq(FIREBASE_UID),
-                eq(LocalDateTime.of(2026, 3, 1, 10, 0, 0)),
-                any(LocalDateTime.class),
-                any(LocalDateTime.class),
-                any(LocalDateTime.class),
-                any(LocalDateTime.class)
+                eq(OffsetDateTime.of(2026, 3, 1, 10, 0, 0, 0, ZoneOffset.UTC)),
+                any(OffsetDateTime.class),
+                any(OffsetDateTime.class),
+                any(OffsetDateTime.class),
+                any(OffsetDateTime.class)
         );
     }
 

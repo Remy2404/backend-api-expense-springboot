@@ -13,7 +13,7 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.Map;
 import java.util.UUID;
 
@@ -36,10 +36,10 @@ public class InsightEntity {
     private String insightType;
 
     @Column(name = "period_start", nullable = false)
-    private LocalDateTime periodStart;
+    private OffsetDateTime periodStart;
 
     @Column(name = "period_end", nullable = false)
-    private LocalDateTime periodEnd;
+    private OffsetDateTime periodEnd;
 
     @Column(name = "summary_text", nullable = false)
     private String summaryText;
@@ -48,9 +48,9 @@ public class InsightEntity {
     @Column(name = "data_snapshot", columnDefinition = "jsonb")
     private Map<String, Object> dataSnapshot;
 
-    @Column(name = "is_read")
+    @Column(name = "is_read", nullable = false)
     private Boolean isRead;
 
-    @Column(name = "created_at")
-    private LocalDateTime createdAt;
+    @Column(name = "created_at", nullable = false)
+    private OffsetDateTime createdAt;
 }

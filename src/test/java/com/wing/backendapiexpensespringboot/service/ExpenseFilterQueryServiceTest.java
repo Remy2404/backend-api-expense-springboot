@@ -9,8 +9,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
@@ -94,8 +94,8 @@ class ExpenseFilterQueryServiceTest {
                 .amount(1.0)
                 .transactionType("EXPENSE")
                 .date(OffsetDateTime.parse(date))
-                .createdAt(LocalDateTime.parse(createdAt))
-                .updatedAt(LocalDateTime.parse(updatedAt))
+                .createdAt(OffsetDateTime.parse(createdAt + "Z").withOffsetSameInstant(ZoneOffset.UTC))
+                .updatedAt(OffsetDateTime.parse(updatedAt + "Z").withOffsetSameInstant(ZoneOffset.UTC))
                 .build();
     }
 }

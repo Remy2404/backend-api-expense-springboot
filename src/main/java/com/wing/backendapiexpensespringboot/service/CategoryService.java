@@ -1,13 +1,14 @@
 package com.wing.backendapiexpensespringboot.service;
 
-import com.wing.backendapiexpensespringboot.model.CategoryType;
 import com.wing.backendapiexpensespringboot.model.CategoryEntity;
+import com.wing.backendapiexpensespringboot.model.CategoryType;
 import com.wing.backendapiexpensespringboot.repository.CategoryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
@@ -46,7 +47,8 @@ public class CategoryService {
                 .icon(icon)
                 .color(color)
                 .categoryType(categoryType.name())
-                .createdAt(LocalDateTime.now())
+                .createdAt(OffsetDateTime.now(ZoneOffset.UTC))
+                .updatedAt(OffsetDateTime.now(ZoneOffset.UTC))
                 .build();
         return categoryRepository.save(category);
     }

@@ -4,11 +4,9 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.Map;
 import java.util.UUID;
-
 @Data
 @Builder
 @NoArgsConstructor
@@ -16,10 +14,10 @@ import java.util.UUID;
 public class InsightDto {
     private UUID id;
     private String insightType;
-    private LocalDateTime periodStart;
-    private LocalDateTime periodEnd;
+    private OffsetDateTime periodStart;
+    private OffsetDateTime periodEnd;
     private String summaryText;
     private Map<String, Object> dataSnapshot;
     private Boolean isRead;
-    private LocalDateTime createdAt;
+    private OffsetDateTime createdAt;
 }

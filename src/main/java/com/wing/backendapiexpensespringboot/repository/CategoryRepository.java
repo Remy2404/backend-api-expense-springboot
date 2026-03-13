@@ -1,28 +1,28 @@
 package com.wing.backendapiexpensespringboot.repository;
 
 import com.wing.backendapiexpensespringboot.model.CategoryEntity;
+import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.time.LocalDateTime;
 
 @Repository
 public interface CategoryRepository extends JpaRepository<CategoryEntity, UUID> {
 
     List<CategoryEntity> findByFirebaseUidOrderByNameAsc(String firebaseUid);
 
-                @Query("""
-                                                SELECT c FROM CategoryEntity c
-                                                WHERE c.firebaseUid = :firebaseUid
-                                                        AND COALESCE(c.isDeleted, false) = false
-                                                ORDER BY c.name ASC
-                                                """)
-                List<CategoryEntity> findActiveByFirebaseUidOrderByNameAsc(@Param("firebaseUid") String firebaseUid);
+    @Query("""
+            SELECT c FROM CategoryEntity c
+            WHERE c.firebaseUid = :firebaseUid
+              AND COALESCE(c.isDeleted, false) = false
+            ORDER BY c.name ASC
+            """)
+    List<CategoryEntity> findActiveByFirebaseUidOrderByNameAsc(@Param("firebaseUid") String firebaseUid);
 
     Optional<CategoryEntity> findByIdAndFirebaseUid(UUID id, String firebaseUid);
 
@@ -38,7 +38,7 @@ public interface CategoryRepository extends JpaRepository<CategoryEntity, UUID> 
             """)
     List<CategoryEntity> findChangedSince(
             @Param("firebaseUid") String firebaseUid,
-            @Param("since") LocalDateTime since
+            @Param("since") OffsetDateTime since
     );
 
     @Query("""

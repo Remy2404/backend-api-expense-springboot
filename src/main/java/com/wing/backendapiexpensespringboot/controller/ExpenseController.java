@@ -1,7 +1,7 @@
 package com.wing.backendapiexpensespringboot.controller;
 
-import com.wing.backendapiexpensespringboot.dto.ExpenseMutationRequestDto;
 import com.wing.backendapiexpensespringboot.dto.ExpenseListItemDto;
+import com.wing.backendapiexpensespringboot.dto.ExpenseMutationRequestDto;
 import com.wing.backendapiexpensespringboot.exception.AppException;
 import com.wing.backendapiexpensespringboot.model.ExpenseEntity;
 import com.wing.backendapiexpensespringboot.security.UserPrincipal;
@@ -24,7 +24,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
@@ -59,7 +58,7 @@ public class ExpenseController {
                 limit,
                 parseLocalDate(dateFrom, "dateFrom"),
                 parseLocalDate(dateTo, "dateTo"),
-                parseLocalDateTime(updatedSince, "updatedSince"),
+                parseOffsetDateTime(updatedSince, "updatedSince"),
                 parseUuid(categoryId, "categoryId"),
                 merchant,
                 minAmount,
@@ -138,16 +137,16 @@ public class ExpenseController {
         }
     }
 
-    private LocalDateTime parseLocalDateTime(String raw, String fieldName) {
+    private OffsetDateTime parseOffsetDateTime(String raw, String fieldName) {
         if (raw == null || raw.isBlank()) {
             return null;
         }
         try {
-            return OffsetDateTime.parse(raw).withOffsetSameInstant(ZoneOffset.UTC).toLocalDateTime();
+            return OffsetDateTime.parse(raw).withOffsetSameInstant(ZoneOffset.UTC);
         } catch (DateTimeParseException ignored) {
         }
         try {
-            return LocalDateTime.parse(raw);
+            return OffsetDateTime.parse(raw);
         } catch (DateTimeParseException exception) {
             throw AppException.badRequest(fieldName + " must use ISO-8601 date-time format");
         }

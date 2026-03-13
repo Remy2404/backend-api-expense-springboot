@@ -5,23 +5,17 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.time.LocalDateTime;
-
+import java.time.OffsetDateTime;
 @Repository
 public interface SavingsGoalRepository extends JpaRepository<SavingsGoalEntity, UUID> {
-
     Optional<SavingsGoalEntity> findByIdAndFirebaseUid(UUID id, String firebaseUid);
-
     @Query("SELECT g FROM SavingsGoalEntity g WHERE g.firebaseUid = :firebaseUid AND COALESCE(g.isDeleted, false) = false AND COALESCE(g.isArchived, false) = false ORDER BY g.createdAt DESC")
     List<SavingsGoalEntity> findActiveByFirebaseUidOrderByCreatedAtDesc(@Param("firebaseUid") String firebaseUid);
-
     @Query("SELECT g FROM SavingsGoalEntity g WHERE g.firebaseUid = :firebaseUid ORDER BY g.createdAt DESC")
     List<SavingsGoalEntity> findAllByFirebaseUidOrderByCreatedAtDesc(@Param("firebaseUid") String firebaseUid);
-
     @Query("""
             SELECT g FROM SavingsGoalEntity g
             WHERE g.firebaseUid = :firebaseUid
@@ -34,6 +28,6 @@ public interface SavingsGoalRepository extends JpaRepository<SavingsGoalEntity, 
             """)
     List<SavingsGoalEntity> findChangedSince(
             @Param("firebaseUid") String firebaseUid,
-            @Param("since") LocalDateTime since
+            @Param("since") OffsetDateTime since
     );
 }

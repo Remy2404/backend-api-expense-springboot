@@ -7,7 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
@@ -38,7 +38,7 @@ public class ExpenseFilterQueryService {
             int limit,
             LocalDate dateFrom,
             LocalDate dateTo,
-            LocalDateTime updatedSince,
+            OffsetDateTime updatedSince,
             UUID categoryId,
             String merchant,
             Double minAmount,

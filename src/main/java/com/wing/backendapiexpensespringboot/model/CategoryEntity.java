@@ -11,7 +11,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
@@ -32,16 +32,16 @@ public class CategoryEntity {
     @Column(name = "name", nullable = false)
     private String name;
 
-    @Column(name = "icon")
+    @Column(name = "icon", nullable = false)
     private String icon;
 
-    @Column(name = "color")
+    @Column(name = "color", nullable = false)
     private String color;
 
     @Column(name = "is_default")
     private Boolean isDefault;
 
-    @Column(name = "category_type")
+    @Column(name = "category_type", nullable = false)
     private String categoryType;
 
     @Column(name = "sort_order")
@@ -51,13 +51,13 @@ public class CategoryEntity {
     private String syncStatus;
 
     @Column(name = "synced_at")
-    private LocalDateTime syncedAt;
+    private OffsetDateTime syncedAt;
 
     @Column(name = "is_deleted")
     private Boolean isDeleted;
 
     @Column(name = "deleted_at")
-    private LocalDateTime deletedAt;
+    private OffsetDateTime deletedAt;
 
     @Column(name = "retry_count")
     private Integer retryCount;
@@ -66,8 +66,8 @@ public class CategoryEntity {
     private String lastError;
 
     @Column(name = "created_at")
-    private LocalDateTime createdAt;
+    private OffsetDateTime createdAt;
 
     @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
+    private OffsetDateTime updatedAt;
 }

@@ -10,7 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -62,7 +63,7 @@ public class BillSplitService {
                 .currency(request.currency())
                 .payerParticipantId(request.payerParticipantId())
                 .splitType(request.splitType())
-                .date(request.date() != null ? request.date() : LocalDateTime.now())
+                .date(request.date() != null ? request.date() : OffsetDateTime.now(ZoneOffset.UTC))
                 .notes(request.notes())
                 .build();
         expense = expenseRepository.save(expense);
@@ -126,7 +127,7 @@ public class BillSplitService {
         }
 
         share.setIsSettled(true);
-        share.setSettledAt(LocalDateTime.now());
+        share.setSettledAt(OffsetDateTime.now(ZoneOffset.UTC));
         shareRepository.save(share);
 
         BillSplitSettlementEntity settlement = BillSplitSettlementEntity.builder()

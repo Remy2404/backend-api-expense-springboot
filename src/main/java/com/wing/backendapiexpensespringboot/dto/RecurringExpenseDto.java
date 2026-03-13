@@ -4,11 +4,9 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.UUID;
-
 @Data
 @Builder
 @NoArgsConstructor
@@ -22,13 +20,13 @@ public class RecurringExpenseDto {
     private String currency;
     private BigDecimal originalAmount;
     private BigDecimal exchangeRate;
-    private LocalDateTime startDate;
-    private LocalDateTime endDate;
-    private LocalDateTime lastGenerated;
-    private LocalDateTime nextDueDate;
+    private OffsetDateTime startDate;
+    private OffsetDateTime endDate;
+    private OffsetDateTime lastGenerated;
+    private OffsetDateTime nextDueDate;
     private Boolean isActive;
     private Boolean notificationEnabled;
     private Integer notificationDaysBefore;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    private OffsetDateTime createdAt;
+    private OffsetDateTime updatedAt;
 }

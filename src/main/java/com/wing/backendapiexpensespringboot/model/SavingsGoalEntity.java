@@ -12,7 +12,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
@@ -40,12 +40,12 @@ public class SavingsGoalEntity {
     private BigDecimal currentAmount;
 
     @Column(name = "deadline")
-    private LocalDateTime deadline;
+    private OffsetDateTime deadline;
 
-    @Column(name = "color")
+    @Column(name = "color", nullable = false)
     private String color;
 
-    @Column(name = "icon")
+    @Column(name = "icon", nullable = false)
     private String icon;
 
     @Column(name = "is_archived")
@@ -55,13 +55,13 @@ public class SavingsGoalEntity {
     private String syncStatus;
 
     @Column(name = "synced_at")
-    private LocalDateTime syncedAt;
+    private OffsetDateTime syncedAt;
 
     @Column(name = "is_deleted")
     private Boolean isDeleted;
 
     @Column(name = "deleted_at")
-    private LocalDateTime deletedAt;
+    private OffsetDateTime deletedAt;
 
     @Column(name = "retry_count")
     private Integer retryCount;
@@ -70,8 +70,8 @@ public class SavingsGoalEntity {
     private String lastError;
 
     @Column(name = "created_at")
-    private LocalDateTime createdAt;
+    private OffsetDateTime createdAt;
 
     @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
+    private OffsetDateTime updatedAt;
 }

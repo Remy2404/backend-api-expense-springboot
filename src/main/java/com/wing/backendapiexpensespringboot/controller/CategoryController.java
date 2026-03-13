@@ -9,12 +9,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/categories")
@@ -32,8 +34,9 @@ public class CategoryController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<CategoryDto> getCategory(@AuthenticationPrincipal UserPrincipal user,
-            @org.springframework.web.bind.annotation.PathVariable("id") java.util.UUID id) {
+    public ResponseEntity<CategoryDto> getCategory(
+            @AuthenticationPrincipal UserPrincipal user,
+            @PathVariable("id") UUID id) {
         String firebaseUid = requireFirebaseUid(user);
         CategoryEntity entity = categoryService.getCategoryById(firebaseUid, id);
         if (entity == null) {
@@ -68,9 +71,10 @@ public class CategoryController {
                 .build();
     }
 
-    private String formatDateTime(LocalDateTime time) {
-        if (time == null)
+    private String formatDateTime(OffsetDateTime time) {
+        if (time == null) {
             return null;
-        return time.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) + "Z";
+        }
+        return time.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
     }
 }

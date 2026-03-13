@@ -6,17 +6,13 @@ import com.wing.backendapiexpensespringboot.model.ProfileEntity;
 import com.wing.backendapiexpensespringboot.repository.ProfileRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-
 @Service
 @RequiredArgsConstructor
 public class ProfileQueryService {
-
     private final ProfileRepository profileRepository;
-
     public ProfileDto getCurrentProfile(String firebaseUid) {
         ProfileEntity profile = profileRepository.findByFirebaseUid(firebaseUid)
                 .orElseThrow(() -> AppException.notFound("Profile not found"));
-
         return ProfileDto.builder()
                 .id(profile.getId())
                 .email(profile.getEmail())

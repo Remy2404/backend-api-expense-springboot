@@ -13,8 +13,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -30,7 +30,7 @@ class ProfileProvisioningServiceTest {
     private ProfileProvisioningService profileProvisioningService;
 
     @Test
-    void syncProfileSetsAiEnabledTrueForNewProfile() {
+        void syncProfileSetsSupabaseDefaultsForNewProfile() {
         String firebaseUid = "firebase-uid-1";
         String email = "qa@example.com";
 
@@ -49,8 +49,9 @@ class ProfileProvisioningServiceTest {
 
         assertEquals(AppRole.USER, result);
         verify(profileRepository).save(profileCaptor.capture());
-        assertEquals(Boolean.TRUE, profileCaptor.getValue().getAiEnabled());
+                assertEquals(Boolean.FALSE, profileCaptor.getValue().getAiEnabled());
         assertEquals("low", profileCaptor.getValue().getRiskLevel());
+                assertEquals("pending", profileCaptor.getValue().getSyncStatus());
     }
 
     @Test
@@ -74,7 +75,7 @@ class ProfileProvisioningServiceTest {
         );
 
         assertNotNull(existingProfile.getAiEnabled());
-        assertTrue(existingProfile.getAiEnabled());
+                assertFalse(existingProfile.getAiEnabled());
     }
 
     @Test
@@ -100,33 +101,57 @@ class ProfileProvisioningServiceTest {
         assertEquals("low", existingProfile.getRiskLevel());
     }
 
-        @Test
-        void syncProfileSkipsSaveWhenExistingProfileIsAlreadyUpToDate() {
-                String firebaseUid = "firebase-uid-4";
-                ProfileEntity existingProfile = ProfileEntity.builder()
-                                .id(java.util.UUID.randomUUID())
-                                .firebaseUid(firebaseUid)
-                                .email("user4@example.com")
-                                .displayName("User Four")
-                                .photoUrl("https://example.com/photo4.png")
-                                .role(AppRole.USER.name())
-                                .aiEnabled(Boolean.TRUE)
-                                .riskLevel("low")
-                                .createdAt(java.time.LocalDateTime.now().minusDays(1))
-                                .updatedAt(java.time.LocalDateTime.now().minusHours(1))
-                                .build();
+    @Test
+    void syncProfileBackfillsSyncStatusWhenExistingProfileHasNull() {
+        String firebaseUid = "firebase-uid-5";
+        ProfileEntity existingProfile = ProfileEntity.builder()
+                .firebaseUid(firebaseUid)
+                .role(AppRole.USER.name())
+                .syncStatus(null)
+                .build();
 
-                when(profileRepository.findByFirebaseUid(firebaseUid)).thenReturn(Optional.of(existingProfile));
+        when(profileRepository.findByFirebaseUid(firebaseUid)).thenReturn(Optional.of(existingProfile));
+        when(profileRepository.save(any(ProfileEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-                AppRole role = profileProvisioningService.syncProfile(
-                                firebaseUid,
-                                "user4@example.com",
-                                "User Four",
-                                "https://example.com/photo4.png",
-                                AppRole.USER
-                );
+        profileProvisioningService.syncProfile(
+                firebaseUid,
+                "user5@example.com",
+                "User Five",
+                null,
+                AppRole.USER
+        );
 
-                assertEquals(AppRole.USER, role);
-                verify(profileRepository, never()).save(any(ProfileEntity.class));
-        }
+        assertEquals("pending", existingProfile.getSyncStatus());
+    }
+
+    @Test
+    void syncProfileSkipsSaveWhenExistingProfileIsAlreadyUpToDate() {
+        String firebaseUid = "firebase-uid-4";
+        ProfileEntity existingProfile = ProfileEntity.builder()
+                .id(java.util.UUID.randomUUID())
+                .firebaseUid(firebaseUid)
+                .email("user4@example.com")
+                .displayName("User Four")
+                .photoUrl("https://example.com/photo4.png")
+                .role(AppRole.USER.name())
+                .aiEnabled(Boolean.FALSE)
+                .riskLevel("low")
+                .syncStatus("pending")
+                .createdAt(java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC).minusDays(1))
+                .updatedAt(java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC).minusHours(1))
+                .build();
+
+        when(profileRepository.findByFirebaseUid(firebaseUid)).thenReturn(Optional.of(existingProfile));
+
+        AppRole role = profileProvisioningService.syncProfile(
+                firebaseUid,
+                "user4@example.com",
+                "User Four",
+                "https://example.com/photo4.png",
+                AppRole.USER
+        );
+
+        assertEquals(AppRole.USER, role);
+        verify(profileRepository, never()).save(any(ProfileEntity.class));
+    }
 }

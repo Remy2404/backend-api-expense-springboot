@@ -40,7 +40,7 @@ public class ExpenseService {
                 startOfNextDayUtc(end));
     }
 
-    public List<ExpenseEntity> getExpensesChangedSince(String firebaseUid, LocalDateTime since) {
+    public List<ExpenseEntity> getExpensesChangedSince(String firebaseUid, OffsetDateTime since) {
         return expenseRepository.findChangedSince(firebaseUid, since);
     }
 
@@ -52,6 +52,7 @@ public class ExpenseService {
 
     @Transactional
     public ExpenseEntity createExpense(String firebaseUid, Map<String, Object> data) {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         ExpenseEntity expense = ExpenseEntity.builder()
                 .firebaseUid(firebaseUid)
                 .amount((Double) data.get("amount"))
@@ -62,7 +63,8 @@ public class ExpenseService {
                 .note((String) data.get("note"))
                 .noteSummary((String) data.get("noteSummary"))
                 .categoryId((UUID) data.get("categoryId"))
-                .createdAt(LocalDateTime.now())
+                .createdAt(now)
+                .updatedAt(now)
                 .build();
 
         return expenseRepository.save(expense);
@@ -78,7 +80,7 @@ public class ExpenseService {
             }
         }
 
-        LocalDateTime createdAt = parseDateTimeOrNow(request.getClientCreatedAt());
+        OffsetDateTime createdAt = parseDateTimeOrNow(request.getClientCreatedAt());
         ExpenseEntity expense = ExpenseEntity.builder()
                 .id(clientId)
                 .firebaseUid(firebaseUid)
@@ -106,7 +108,6 @@ public class ExpenseService {
             if (clientId == null) {
                 throw ex;
             }
-            // Concurrent create with same clientId can race. Treat as idempotent create.
             ExpenseEntity existing = findOwnedByClientId(firebaseUid, clientId);
             if (existing != null) {
                 return existing;
@@ -158,14 +159,14 @@ public class ExpenseService {
             expense.setRateSource(request.getRateSource());
         }
 
-        expense.setUpdatedAt(nowUtcLocal());
+        expense.setUpdatedAt(nowUtc());
         return expenseRepository.save(expense);
     }
 
     @Transactional
     public ExpenseEntity softDeleteExpense(String firebaseUid, UUID expenseId) {
         ExpenseEntity expense = getExpenseById(firebaseUid, expenseId);
-        LocalDateTime now = nowUtcLocal();
+        OffsetDateTime now = nowUtc();
         expense.setIsDeleted(true);
         expense.setDeletedAt(now);
         expense.setUpdatedAt(now);
@@ -173,13 +174,17 @@ public class ExpenseService {
     }
 
     @Transactional
-    public ExpenseEntity updateAiCategorization(String firebaseUid, UUID expenseId, UUID aiCategoryId,
-                                                 Double aiConfidence, String aiSource) {
+    public ExpenseEntity updateAiCategorization(
+            String firebaseUid,
+            UUID expenseId,
+            UUID aiCategoryId,
+            Double aiConfidence,
+            String aiSource) {
         ExpenseEntity expense = getExpenseById(firebaseUid, expenseId);
         expense.setAiCategoryId(aiCategoryId);
         expense.setAiConfidence(aiConfidence);
         expense.setAiSource(aiSource);
-        expense.setUpdatedAt(LocalDateTime.now());
+        expense.setUpdatedAt(nowUtc());
         return expenseRepository.save(expense);
     }
 
@@ -196,7 +201,7 @@ public class ExpenseService {
     }
 
     public List<ExpenseEntity> getByCategoryBetween(String firebaseUid, UUID categoryId,
-                                                     LocalDate start, LocalDate end) {
+                                                    LocalDate start, LocalDate end) {
         return expenseRepository.findByFirebaseUidAndCategoryIdAndDateBetween(
                 firebaseUid,
                 categoryId,
@@ -239,21 +244,19 @@ public class ExpenseService {
         return parseExpenseDateOrNow(String.valueOf(rawValue));
     }
 
-    private LocalDateTime parseDateTimeOrNow(String raw) {
+    private OffsetDateTime parseDateTimeOrNow(String raw) {
         if (raw == null || raw.isBlank()) {
-            return nowUtcLocal();
+            return nowUtc();
         }
         try {
-            return OffsetDateTime.parse(raw)
-                    .withOffsetSameInstant(ZoneOffset.UTC)
-                    .toLocalDateTime();
+            return OffsetDateTime.parse(raw).withOffsetSameInstant(ZoneOffset.UTC);
         } catch (Exception ignored) {
         }
         try {
-            return LocalDateTime.parse(raw);
+            return LocalDateTime.parse(raw).atOffset(ZoneOffset.UTC);
         } catch (Exception ignored) {
         }
-        return nowUtcLocal();
+        return nowUtc();
     }
 
     private UUID parseUuidOrNull(String raw) {
@@ -303,8 +306,8 @@ public class ExpenseService {
         return value == null ? null : BigDecimal.valueOf(value);
     }
 
-    private LocalDateTime nowUtcLocal() {
-        return OffsetDateTime.now(ZoneOffset.UTC).toLocalDateTime();
+    private OffsetDateTime nowUtc() {
+        return OffsetDateTime.now(ZoneOffset.UTC);
     }
 
     private OffsetDateTime startOfDayUtc(LocalDate date) {

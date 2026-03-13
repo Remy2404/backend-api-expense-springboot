@@ -11,7 +11,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
@@ -35,18 +35,18 @@ public class MemoryEntity {
     @Column(name = "resolved_category_id")
     private UUID resolvedCategoryId;
 
-    @Column(name = "override_count")
+    @Column(name = "override_count", nullable = false)
     private Integer overrideCount;
 
-    @Column(name = "last_used_at")
-    private LocalDateTime lastUsedAt;
+    @Column(name = "last_used_at", nullable = false)
+    private OffsetDateTime lastUsedAt;
 
     @Column(name = "last_corrected_at")
-    private LocalDateTime lastCorrectedAt;
+    private OffsetDateTime lastCorrectedAt;
 
     @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt;
+    private OffsetDateTime createdAt;
 
-    @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
+    @Column(name = "updated_at", nullable = false)
+    private OffsetDateTime updatedAt;
 }

@@ -6,18 +6,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.UUID;
-
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class CorrectionService {
-
     private final CorrectionRepository correctionRepository;
-
     @Transactional
     public CorrectionEntity insertCorrection(String firebaseUid, UUID expenseId, UUID originalCategoryId,
                                               UUID correctedCategoryId, BigDecimal originalAmount, Double correctedAmount,
@@ -31,9 +27,8 @@ public class CorrectionService {
                 .correctedAmount(correctedAmount)
                 .originalMerchant(originalMerchant)
                 .correctedMerchant(correctedMerchant)
-                .createdAt(LocalDateTime.now())
+                .createdAt(OffsetDateTime.now())
                 .build();
-
         return correctionRepository.save(correction);
     }
 }

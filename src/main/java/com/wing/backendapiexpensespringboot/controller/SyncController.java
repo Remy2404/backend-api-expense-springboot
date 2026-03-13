@@ -18,7 +18,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -28,7 +27,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SyncController {
 
-    private static final LocalDateTime DEFAULT_SINCE = LocalDateTime.of(1970, 1, 1, 0, 0);
+    private static final OffsetDateTime DEFAULT_SINCE = OffsetDateTime.of(1970, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
 
     private final SyncService syncService;
     private final RealtimeRelayService realtimeRelayService;
@@ -89,25 +88,17 @@ public class SyncController {
         return user.getFirebaseUid();
     }
 
-    private LocalDateTime parseSince(String raw, String fieldName) {
+    private OffsetDateTime parseSince(String raw, String fieldName) {
         if (raw == null || raw.isBlank()) {
             return DEFAULT_SINCE;
         }
 
         try {
-            return OffsetDateTime.parse(raw)
-                    .withOffsetSameInstant(ZoneOffset.UTC)
-                    .toLocalDateTime();
+            return OffsetDateTime.parse(raw).withOffsetSameInstant(ZoneOffset.UTC);
         } catch (Exception ignored) {
         }
         try {
-            return LocalDateTime.parse(raw);
-        } catch (Exception ignored) {
-        }
-        try {
-            return Instant.parse(raw)
-                    .atOffset(ZoneOffset.UTC)
-                    .toLocalDateTime();
+            return Instant.parse(raw).atOffset(ZoneOffset.UTC);
         } catch (Exception ignored) {
         }
 

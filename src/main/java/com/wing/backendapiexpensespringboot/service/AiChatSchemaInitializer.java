@@ -15,20 +15,16 @@ public class AiChatSchemaInitializer {
 
     @PostConstruct
     public void ensureSchema() {
-        jdbcTemplate.execute("""
-                CREATE TABLE IF NOT EXISTS ai_chat_messages (
-                    id UUID PRIMARY KEY,
-                    firebase_uid VARCHAR(255) NOT NULL,
-                    role VARCHAR(32) NOT NULL,
-                    content TEXT NOT NULL,
-                    request_id VARCHAR(128),
-                    created_at TIMESTAMP NOT NULL
-                )
-                """);
-        jdbcTemplate.execute("""
-                CREATE INDEX IF NOT EXISTS idx_ai_chat_messages_uid_created_at
-                ON ai_chat_messages (firebase_uid, created_at DESC)
-                """);
-        log.info("Ensured ai_chat_messages schema exists");
+        Integer tableCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM information_schema.tables
+                WHERE table_schema = 'public'
+                  AND table_name = 'ai_chat_messages'
+                """, Integer.class);
+        if (tableCount == null || tableCount == 0) {
+            log.error("Missing required table: public.ai_chat_messages. Apply schema migrations before startup.");
+            throw new IllegalStateException("Missing required table public.ai_chat_messages");
+        }
+        log.info("Verified required table exists: public.ai_chat_messages");
     }
 }

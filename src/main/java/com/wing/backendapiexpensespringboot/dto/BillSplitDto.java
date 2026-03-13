@@ -3,7 +3,7 @@ package com.wing.backendapiexpensespringboot.dto;
 import lombok.Builder;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -15,8 +15,8 @@ public class BillSplitDto {
             String name,
             String currency,
             String createdBy,
-            LocalDateTime createdAt,
-            LocalDateTime updatedAt,
+            OffsetDateTime createdAt,
+            OffsetDateTime updatedAt,
             Boolean isDeleted) {
     }
 
@@ -26,7 +26,7 @@ public class BillSplitDto {
             UUID groupId,
             String name,
             String userId,
-            LocalDateTime createdAt) {
+            OffsetDateTime createdAt) {
     }
 
     @Builder
@@ -38,9 +38,9 @@ public class BillSplitDto {
             String currency,
             UUID payerParticipantId,
             String splitType,
-            LocalDateTime date,
+            OffsetDateTime date,
             String notes,
-            LocalDateTime createdAt) {
+            OffsetDateTime createdAt) {
     }
 
     @Builder
@@ -50,7 +50,7 @@ public class BillSplitDto {
             UUID participantId,
             BigDecimal amount,
             Boolean isSettled,
-            LocalDateTime settledAt) {
+            OffsetDateTime settledAt) {
     }
 
     @Builder
@@ -62,7 +62,7 @@ public class BillSplitDto {
             BigDecimal amount,
             String method,
             String note,
-            LocalDateTime createdAt) {
+            OffsetDateTime createdAt) {
     }
 
     @Builder
@@ -71,8 +71,8 @@ public class BillSplitDto {
             String name,
             String currency,
             String createdBy,
-            LocalDateTime createdAt,
-            LocalDateTime updatedAt,
+            OffsetDateTime createdAt,
+            OffsetDateTime updatedAt,
             Boolean isDeleted,
             int participantsCount,
             int expensesCount,
@@ -101,7 +101,7 @@ public class BillSplitDto {
             String currency,
             UUID payerParticipantId,
             String notes,
-            LocalDateTime date,
+            OffsetDateTime date,
             String splitType,
             List<UUID> participantIds,
             java.util.Map<UUID, BigDecimal> customShares) {

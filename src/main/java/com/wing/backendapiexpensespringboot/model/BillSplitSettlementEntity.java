@@ -13,7 +13,7 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
@@ -31,7 +31,7 @@ public class BillSplitSettlementEntity {
     @Column(name = "group_id", nullable = false)
     private UUID groupId;
 
-    @Column(name = "expense_id", nullable = false)
+    @Column(name = "expense_id")
     private UUID expenseId;
 
     @Column(name = "participant_id", nullable = false)
@@ -48,5 +48,5 @@ public class BillSplitSettlementEntity {
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
-    private LocalDateTime createdAt;
+    private OffsetDateTime createdAt;
 }

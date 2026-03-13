@@ -3,6 +3,7 @@ package com.wing.backendapiexpensespringboot.controller;
 import com.wing.backendapiexpensespringboot.security.UserPrincipal;
 import com.wing.backendapiexpensespringboot.security.FirebaseAuthFilter;
 import com.wing.backendapiexpensespringboot.service.BudgetQueryService;
+import com.wing.backendapiexpensespringboot.service.BudgetSummaryService;
 import com.wing.backendapiexpensespringboot.service.InsightQueryService;
 import com.wing.backendapiexpensespringboot.service.RecurringExpenseQueryService;
 import com.wing.backendapiexpensespringboot.service.SavingsGoalQueryService;
@@ -40,6 +41,9 @@ class ListEndpointsControllerTest {
 
     @MockBean
     private BudgetQueryService budgetQueryService;
+
+    @MockBean
+    private BudgetSummaryService budgetSummaryService;
 
     @MockBean
     private SavingsGoalQueryService savingsGoalQueryService;

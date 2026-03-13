@@ -7,7 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
@@ -25,7 +25,7 @@ public class CorrectionEntity {
     @Column(name = "firebase_uid", nullable = false)
     private String firebaseUid;
 
-    @Column(name = "expense_id")
+    @Column(name = "expense_id", nullable = false)
     private UUID expenseId;
 
     @Column(name = "original_category_id")
@@ -47,5 +47,5 @@ public class CorrectionEntity {
     private String correctedMerchant;
 
     @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt;
+    private OffsetDateTime createdAt;
 }

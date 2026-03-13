@@ -12,7 +12,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
@@ -52,16 +52,16 @@ public class RecurringExpenseEntity {
     private BigDecimal exchangeRate;
 
     @Column(name = "start_date", nullable = false)
-    private LocalDateTime startDate;
+    private OffsetDateTime startDate;
 
     @Column(name = "end_date")
-    private LocalDateTime endDate;
+    private OffsetDateTime endDate;
 
     @Column(name = "last_generated")
-    private LocalDateTime lastGenerated;
+    private OffsetDateTime lastGenerated;
 
     @Column(name = "next_due_date", nullable = false)
-    private LocalDateTime nextDueDate;
+    private OffsetDateTime nextDueDate;
 
     @Column(name = "is_active")
     private Boolean isActive;
@@ -76,13 +76,13 @@ public class RecurringExpenseEntity {
     private String syncStatus;
 
     @Column(name = "synced_at")
-    private LocalDateTime syncedAt;
+    private OffsetDateTime syncedAt;
 
     @Column(name = "is_deleted")
     private Boolean isDeleted;
 
     @Column(name = "deleted_at")
-    private LocalDateTime deletedAt;
+    private OffsetDateTime deletedAt;
 
     @Column(name = "retry_count")
     private Integer retryCount;
@@ -91,8 +91,8 @@ public class RecurringExpenseEntity {
     private String lastError;
 
     @Column(name = "created_at")
-    private LocalDateTime createdAt;
+    private OffsetDateTime createdAt;
 
     @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
+    private OffsetDateTime updatedAt;
 }

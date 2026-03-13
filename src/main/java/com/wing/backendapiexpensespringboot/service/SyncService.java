@@ -68,11 +68,11 @@ public class SyncService {
     @Transactional(readOnly = true)
     public SyncPullResponseDto pull(
             String firebaseUid,
-            LocalDateTime expenseSince,
-            LocalDateTime categorySince,
-            LocalDateTime budgetSince,
-            LocalDateTime goalSince,
-            LocalDateTime recurringSince) {
+            OffsetDateTime expenseSince,
+            OffsetDateTime categorySince,
+            OffsetDateTime budgetSince,
+            OffsetDateTime goalSince,
+            OffsetDateTime recurringSince) {
         SyncPullResponseDto response = SyncPullResponseDto.empty();
 
         List<ExpenseEntity> expenses = expenseRepository.findChangedSince(firebaseUid, expenseSince);
@@ -119,7 +119,7 @@ public class SyncService {
                 seeded = true;
             }
             CategoryEntity entity = existingOpt.orElseGet(CategoryEntity::new);
-            LocalDateTime incomingUpdatedAt = parseDateTime(item.getUpdatedAt());
+            OffsetDateTime incomingUpdatedAt = parseDateTime(item.getUpdatedAt());
             if (!seeded && isStale(entity.getUpdatedAt(), incomingUpdatedAt)) {
                 addFailed(response, item.getId(), "category", "Stale category update");
                 continue;
@@ -138,7 +138,7 @@ public class SyncService {
                 if (duplicateActiveCategory.isPresent()) {
                     UUID canonicalId = duplicateActiveCategory.get().getId();
                     remapCategoryReferences(firebaseUid, id, canonicalId);
-                    LocalDateTime incomingDeletedAt = parseDateTime(item.getDeletedAt());
+                    OffsetDateTime incomingDeletedAt = parseDateTime(item.getDeletedAt());
 
                     entity.setId(id);
                     entity.setFirebaseUid(firebaseUid);
@@ -156,7 +156,8 @@ public class SyncService {
                     entity.setLastError(item.getLastError());
                     entity.setCreatedAt(resolveCreatedAt(entity.getCreatedAt(), item.getCreatedAt()));
                     entity.setUpdatedAt(resolveUpdatedAt(item.getUpdatedAt()));
-                    entity.setSyncedAt(resolveUpdatedAt(item.getSyncedAt()));
+                    entity.setSyncedAt(resolveSyncedAt(item.getSyncedAt()));
+                    entity.setSyncStatus(resolveSyncStatus(item.getSyncedAt()));
 
                     categoryRepository.save(entity);
                     response.getSyncedItems().setCategories(response.getSyncedItems().getCategories() + 1);
@@ -183,7 +184,8 @@ public class SyncService {
             entity.setLastError(item.getLastError());
             entity.setCreatedAt(resolveCreatedAt(entity.getCreatedAt(), item.getCreatedAt()));
             entity.setUpdatedAt(resolveUpdatedAt(item.getUpdatedAt()));
-            entity.setSyncedAt(resolveUpdatedAt(item.getSyncedAt()));
+            entity.setSyncedAt(resolveSyncedAt(item.getSyncedAt()));
+            entity.setSyncStatus(resolveSyncStatus(item.getSyncedAt()));
 
             categoryRepository.save(entity);
             response.getSyncedItems().setCategories(response.getSyncedItems().getCategories() + 1);
@@ -280,7 +282,7 @@ public class SyncService {
                 seeded = true;
             }
             ExpenseEntity entity = existingOpt.orElseGet(ExpenseEntity::new);
-            LocalDateTime incomingUpdatedAt = parseDateTime(item.getUpdatedAt());
+            OffsetDateTime incomingUpdatedAt = parseDateTime(item.getUpdatedAt());
             if (!seeded && isStale(entity.getUpdatedAt(), incomingUpdatedAt)) {
                 addFailed(response, item.getId(), "expense", "Stale expense update");
                 continue;
@@ -311,7 +313,8 @@ public class SyncService {
             entity.setLastError(item.getLastError());
             entity.setCreatedAt(resolveCreatedAt(entity.getCreatedAt(), item.getCreatedAt()));
             entity.setUpdatedAt(resolveUpdatedAt(item.getUpdatedAt()));
-            entity.setSyncedAt(resolveUpdatedAt(item.getSyncedAt()));
+            entity.setSyncedAt(resolveSyncedAt(item.getSyncedAt()));
+            entity.setSyncStatus(resolveSyncStatus(item.getSyncedAt()));
 
             expenseRepository.save(entity);
             response.getSyncedItems().setExpenses(response.getSyncedItems().getExpenses() + 1);
@@ -342,7 +345,7 @@ public class SyncService {
                 seeded = true;
             }
             BudgetEntity entity = existingOpt.orElseGet(BudgetEntity::new);
-            LocalDateTime incomingUpdatedAt = parseDateTime(item.getUpdatedAt());
+            OffsetDateTime incomingUpdatedAt = parseDateTime(item.getUpdatedAt());
             if (!seeded && isStale(entity.getUpdatedAt(), incomingUpdatedAt)) {
                 addFailed(response, item.getId(), "budget", "Stale budget update");
                 continue;
@@ -358,7 +361,8 @@ public class SyncService {
             entity.setLastError(item.getLastError());
             entity.setCreatedAt(resolveCreatedAt(entity.getCreatedAt(), item.getCreatedAt()));
             entity.setUpdatedAt(resolveUpdatedAt(item.getUpdatedAt()));
-            entity.setSyncedAt(resolveUpdatedAt(item.getSyncedAt()));
+            entity.setSyncedAt(resolveSyncedAt(item.getSyncedAt()));
+            entity.setSyncStatus(resolveSyncStatus(item.getSyncedAt()));
 
             budgetRepository.save(entity);
             categoryBudgetRepository.deleteByBudgetId(entity.getId());
@@ -392,7 +396,7 @@ public class SyncService {
                 seeded = true;
             }
             SavingsGoalEntity entity = existingOpt.orElseGet(SavingsGoalEntity::new);
-            LocalDateTime incomingUpdatedAt = parseDateTime(item.getUpdatedAt());
+            OffsetDateTime incomingUpdatedAt = parseDateTime(item.getUpdatedAt());
             if (!seeded && isStale(entity.getUpdatedAt(), incomingUpdatedAt)) {
                 addFailed(response, item.getId(), "goal", "Stale goal update");
                 continue;
@@ -413,7 +417,8 @@ public class SyncService {
             entity.setLastError(item.getLastError());
             entity.setCreatedAt(resolveCreatedAt(entity.getCreatedAt(), item.getCreatedAt()));
             entity.setUpdatedAt(resolveUpdatedAt(item.getUpdatedAt()));
-            entity.setSyncedAt(resolveUpdatedAt(item.getSyncedAt()));
+            entity.setSyncedAt(resolveSyncedAt(item.getSyncedAt()));
+            entity.setSyncStatus(resolveSyncStatus(item.getSyncedAt()));
 
             savingsGoalRepository.save(entity);
             goalTransactionRepository.deleteByGoalId(entity.getId());
@@ -456,7 +461,7 @@ public class SyncService {
                 seeded = true;
             }
             RecurringExpenseEntity entity = existingOpt.orElseGet(RecurringExpenseEntity::new);
-            LocalDateTime incomingUpdatedAt = parseDateTime(item.getUpdatedAt());
+            OffsetDateTime incomingUpdatedAt = parseDateTime(item.getUpdatedAt());
             if (!seeded && isStale(entity.getUpdatedAt(), incomingUpdatedAt)) {
                 addFailed(response, item.getId(), "recurring", "Stale recurring update");
                 continue;
@@ -486,7 +491,8 @@ public class SyncService {
             entity.setLastError(item.getLastError());
             entity.setCreatedAt(resolveCreatedAt(entity.getCreatedAt(), item.getCreatedAt()));
             entity.setUpdatedAt(resolveUpdatedAt(item.getUpdatedAt()));
-            entity.setSyncedAt(resolveUpdatedAt(item.getSyncedAt()));
+            entity.setSyncedAt(resolveSyncedAt(item.getSyncedAt()));
+            entity.setSyncStatus(resolveSyncStatus(item.getSyncedAt()));
 
             recurringExpenseRepository.save(entity);
             response.getSyncedItems().setRecurring(response.getSyncedItems().getRecurring() + 1);
@@ -752,7 +758,7 @@ public class SyncService {
                 .build();
     }
 
-    private boolean isStale(LocalDateTime existingUpdatedAt, LocalDateTime incomingUpdatedAt) {
+    private boolean isStale(OffsetDateTime existingUpdatedAt, OffsetDateTime incomingUpdatedAt) {
         return existingUpdatedAt != null && incomingUpdatedAt != null && incomingUpdatedAt.isBefore(existingUpdatedAt);
     }
 
@@ -810,56 +816,60 @@ public class SyncService {
             return OffsetDateTime.parse(raw).withOffsetSameInstant(ZoneOffset.UTC);
         } catch (Exception ignored) {
         }
-        LocalDateTime dateTime = parseDateTime(raw);
-        return dateTime == null ? OffsetDateTime.now(ZoneOffset.UTC) : dateTime.atOffset(ZoneOffset.UTC);
+        OffsetDateTime dateTime = parseDateTime(raw);
+        return dateTime == null ? OffsetDateTime.now(ZoneOffset.UTC) : dateTime;
     }
 
-    private LocalDateTime resolveDateTimeOrNow(String raw) {
-        LocalDateTime parsed = parseDateTime(raw);
+    private OffsetDateTime resolveDateTimeOrNow(String raw) {
+        OffsetDateTime parsed = parseDateTime(raw);
         return parsed == null ? utcNow() : parsed;
     }
 
-    private LocalDateTime resolveCreatedAt(LocalDateTime existing, String incoming) {
+    private OffsetDateTime resolveCreatedAt(OffsetDateTime existing, String incoming) {
         if (existing != null) {
             return existing;
         }
-        LocalDateTime parsed = parseDateTime(incoming);
+        OffsetDateTime parsed = parseDateTime(incoming);
         return parsed == null ? utcNow() : parsed;
     }
 
-    private LocalDateTime resolveUpdatedAt(String incoming) {
-        LocalDateTime parsed = parseDateTime(incoming);
+    private OffsetDateTime resolveUpdatedAt(String incoming) {
+        OffsetDateTime parsed = parseDateTime(incoming);
         return parsed == null ? utcNow() : parsed;
     }
 
-    private LocalDateTime parseDateTime(String raw) {
+    private OffsetDateTime resolveSyncedAt(String incoming) {
+        return parseDateTime(incoming);
+    }
+
+    private String resolveSyncStatus(String incomingSyncedAt) {
+        return resolveSyncedAt(incomingSyncedAt) == null ? "pending" : "synced";
+    }
+
+    private OffsetDateTime parseDateTime(String raw) {
         if (raw == null || raw.isBlank()) {
             return null;
         }
         try {
-            return OffsetDateTime.parse(raw)
-                    .withOffsetSameInstant(ZoneOffset.UTC)
-                    .toLocalDateTime();
+            return OffsetDateTime.parse(raw).withOffsetSameInstant(ZoneOffset.UTC);
         } catch (Exception ignored) {
         }
         try {
-            return LocalDateTime.parse(raw);
+            return LocalDateTime.parse(raw).atOffset(ZoneOffset.UTC);
         } catch (Exception ignored) {
         }
         try {
-            return Instant.parse(raw)
-                    .atOffset(ZoneOffset.UTC)
-                    .toLocalDateTime();
+            return Instant.parse(raw).atOffset(ZoneOffset.UTC);
         } catch (Exception ignored) {
         }
         return null;
     }
 
-    private String formatDateTime(LocalDateTime value) {
+    private String formatDateTime(OffsetDateTime value) {
         if (value == null) {
             return null;
         }
-        return value.atOffset(ZoneOffset.UTC).toString();
+        return value.withOffsetSameInstant(ZoneOffset.UTC).toString();
     }
 
     private String formatOffsetDateTime(OffsetDateTime value) {
@@ -881,8 +891,8 @@ public class SyncService {
         return value == null ? null : BigDecimal.valueOf(value);
     }
 
-    private LocalDateTime utcNow() {
-        return LocalDateTime.now(ZoneOffset.UTC);
+    private OffsetDateTime utcNow() {
+        return OffsetDateTime.now(ZoneOffset.UTC);
     }
 
     private <T> List<T> safeList(List<T> items) {

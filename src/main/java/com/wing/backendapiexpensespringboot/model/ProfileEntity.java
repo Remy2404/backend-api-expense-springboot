@@ -12,7 +12,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
@@ -45,26 +45,27 @@ public class ProfileEntity {
     @Column(name = "current_balance")
     private BigDecimal currentBalance;
 
+    @Builder.Default
     @Column(name = "sync_status")
-    private String syncStatus;
+    private String syncStatus = "pending";
 
     @Column(name = "synced_at")
-    private LocalDateTime syncedAt;
+    private OffsetDateTime syncedAt;
 
     @Builder.Default
     @Column(name = "ai_enabled", nullable = false)
-    private Boolean aiEnabled = Boolean.TRUE;
+    private Boolean aiEnabled = Boolean.FALSE;
 
     @Builder.Default
     @Column(name = "risk_level", nullable = false)
     private String riskLevel = "low";
 
-    @Column(name = "role")
+    @Column(name = "role", nullable = false)
     private String role;
 
     @Column(name = "created_at")
-    private LocalDateTime createdAt;
+    private OffsetDateTime createdAt;
 
     @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
+    private OffsetDateTime updatedAt;
 }
