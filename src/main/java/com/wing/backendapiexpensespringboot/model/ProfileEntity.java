@@ -51,11 +51,13 @@ public class ProfileEntity {
     @Column(name = "synced_at")
     private LocalDateTime syncedAt;
 
-    @Column(name = "ai_enabled")
-    private Boolean aiEnabled;
+    @Builder.Default
+    @Column(name = "ai_enabled", nullable = false)
+    private Boolean aiEnabled = Boolean.TRUE;
 
-    @Column(name = "risk_level")
-    private String riskLevel;
+    @Builder.Default
+    @Column(name = "risk_level", nullable = false)
+    private String riskLevel = "low";
 
     @Column(name = "role")
     private String role;

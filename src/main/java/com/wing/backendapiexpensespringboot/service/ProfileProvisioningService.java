@@ -14,6 +14,8 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 public class ProfileProvisioningService {
 
+    private static final String DEFAULT_RISK_LEVEL = "low";
+
     private final ProfileRepository profileRepository;
 
     @Transactional
@@ -32,15 +34,32 @@ public class ProfileProvisioningService {
                         .createdAt(now)
                         .build());
 
-        mergeField(profile.getEmail(), normalize(email), profile::setEmail);
-        mergeField(profile.getDisplayName(), normalize(displayName), profile::setDisplayName);
-        mergeField(profile.getPhotoUrl(), normalize(photoUrl), profile::setPhotoUrl);
+        boolean shouldPersist = profile.getId() == null;
+
+        shouldPersist |= mergeField(profile.getEmail(), normalize(email), profile::setEmail);
+        shouldPersist |= mergeField(profile.getDisplayName(), normalize(displayName), profile::setDisplayName);
+        shouldPersist |= mergeField(profile.getPhotoUrl(), normalize(photoUrl), profile::setPhotoUrl);
         if (!StringUtils.hasText(profile.getRole())) {
             profile.setRole(claimedRole.name());
+            shouldPersist = true;
         }
         if (profile.getCreatedAt() == null) {
             profile.setCreatedAt(now);
+            shouldPersist = true;
         }
+        if (profile.getAiEnabled() == null) {
+            profile.setAiEnabled(Boolean.TRUE);
+            shouldPersist = true;
+        }
+        if (!StringUtils.hasText(profile.getRiskLevel())) {
+            profile.setRiskLevel(DEFAULT_RISK_LEVEL);
+            shouldPersist = true;
+        }
+
+        if (!shouldPersist) {
+            return AppRole.from(profile.getRole());
+        }
+
         profile.setUpdatedAt(now);
 
         ProfileEntity savedProfile = profileRepository.save(profile);
@@ -51,9 +70,13 @@ public class ProfileProvisioningService {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
-    private void mergeField(String currentValue, String nextValue, java.util.function.Consumer<String> setter) {
+    private boolean mergeField(String currentValue, String nextValue, java.util.function.Consumer<String> setter) {
         if (nextValue != null || currentValue == null) {
-            setter.accept(nextValue);
+            if (!java.util.Objects.equals(currentValue, nextValue)) {
+                setter.accept(nextValue);
+                return true;
+            }
         }
+        return false;
     }
 }
