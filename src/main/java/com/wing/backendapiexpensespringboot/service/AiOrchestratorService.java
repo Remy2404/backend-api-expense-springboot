@@ -52,21 +52,78 @@ public class AiOrchestratorService {
             User timezone: %s.
             """;
 
-    private static final String ADD_EXPENSE_PROMPT = """
+    private static final String CREATE_ENTITY_PROMPT = """
             You are a Smart Personal Finance Assistant.
-            Classify intent and extract expense data.
-            Return JSON ONLY: { "intent": "add_expense|query_expenses|none", "confidence": 0.0, "payload": { "amount": 0.0, "category": "", "note": "", "noteSummary": "", "date": "YYYY-MM-DD", "merchant": "" } }
+            Classify create intents and extract structured finance data.
+            Return JSON ONLY.
+
+            Valid intents:
+            - add_transaction
+            - add_budget
+            - add_goal
+            - add_category
+            - add_recurring_expense
+            - query_expenses
+            - none
+
+            Transaction response:
+            {
+              "intent": "add_transaction",
+              "confidence": 0.0,
+              "transactions": [{ "kind": "transaction", "type": "income|expense", "amount": 0.0, "currency": "USD", "category": "", "note": "", "noteSummary": "", "date": "YYYY-MM-DD", "merchant": "" }]
+            }
+
+            Budget response:
+            {
+              "intent": "add_budget",
+              "confidence": 0.0,
+              "payload": { "kind": "budget", "month": "YYYY-MM", "totalAmount": 0.0 }
+            }
+
+            Goal response:
+            {
+              "intent": "add_goal",
+              "confidence": 0.0,
+              "payload": { "kind": "goal", "name": "", "targetAmount": 0.0, "currentAmount": 0.0, "deadline": "YYYY-MM-DD", "color": "#10B981", "icon": "target" }
+            }
+
+            Category response:
+            {
+              "intent": "add_category",
+              "confidence": 0.0,
+              "payload": { "kind": "category", "name": "", "categoryType": "expense|income", "color": "#6366F1", "icon": "tag" }
+            }
+
+            Recurring expense response:
+            {
+              "intent": "add_recurring_expense",
+              "confidence": 0.0,
+              "payload": { "kind": "recurring_expense", "amount": 0.0, "currency": "USD", "category": "", "note": "", "frequency": "daily|weekly|biweekly|monthly|yearly", "startDate": "YYYY-MM-DD", "endDate": null, "notificationEnabled": true, "notificationDaysBefore": 1 }
+            }
 
             INTENT RULES:
-            - add_expense for new records. query_expenses for querying. none for generic chat.
+            - add_transaction for new transaction records.
+            - add_budget for monthly budget creation.
+            - add_goal for savings goal creation.
+            - add_category for category creation.
+            - add_recurring_expense for recurring bill/subscription creation.
+            - query_expenses for querying. none for generic chat.
 
-            EXTRACTION RULES FOR ADD_EXPENSE:
+            EXTRACTION RULES:
+            - Detect both income and expenses.
+            - If multiple transactions exist, return multiple objects in the transactions array.
+            - If only one exists, still return a transactions array with one object.
+            - TYPE RULES: use "income" for earned/received/refund/salary/freelance style inflows. Use "expense" for spent/paid/bought style outflows.
+            - CURRENCY RULES: default to USD unless another currency is explicitly stated.
             - NOTE RULES: Create a professional title in Title Case (1-3 words). Summarize the item (e.g. "Coffee", "Gasoline"). Do not copy conversational fillers. Fallback to category name if unclear.
             - NOTE_SUMMARY RULES: Create a brief summary of the expense (5-15 words). Include relevant details like who, what, where context. E.g. "Morning coffee at Starbucks with colleague", "Weekly groceries shopping at Walmart", "Gas refill at Shell station". Make it descriptive.
             - MERCHANT RULES: Extract store/brand if available. If not explicit, return empty string.
             - DATE RULES: CURRENT_DATE=%s. Use this for 'today' or if no date is provided.
             - CATEGORY RULES: Use closest match from available categories: %s. Return empty string if missing.
             - AMOUNT RULES: Never guess. Return 0.0 if missing.
+            - BUDGET MONTH RULES: if user says this month, use CURRENT_MONTH=%s.
+            - GOAL DEFAULTS: if no current amount, return 0.0. If no color/icon, use provided defaults.
+            - RECURRING DEFAULTS: if no startDate, use CURRENT_DATE. if no notification setting, return true and 1.
             """;
 
     private static final Pattern AMOUNT_TOKEN_PATTERN = Pattern.compile("(^|\\s)[$€£¥₹]?\\d+(?:[.,]\\d+)?(\\s|$)");
@@ -307,8 +364,8 @@ public class AiOrchestratorService {
 
         try {
             // Route based on intent (Bug 5 fix — intent-aware routing)
-            if ("add_expense".equals(intent)) {
-                return handleAddExpenseIntent(firebaseUid, request, categories, localToday, recentExpenses.size());
+            if (intent.startsWith("add_")) {
+                return handleCreateIntent(firebaseUid, request, categories, localToday, recentExpenses.size(), intent);
             }
 
             // For query_expenses and none intents — answer the question with expense data
@@ -348,57 +405,38 @@ public class AiOrchestratorService {
         }
     }
 
-    private ChatResponse handleAddExpenseIntent(
+    private ChatResponse handleCreateIntent(
             String firebaseUid, ChatRequest request, List<CategoryEntity> categories,
-            String localToday, int dataPoints) {
+            String localToday, int dataPoints, String intent) {
 
         String categoryList = categories.stream()
                 .map(CategoryEntity::getName)
                 .collect(Collectors.joining(", "));
+        String currentMonth = localToday.substring(0, 7);
 
-        String prompt = String.format(ADD_EXPENSE_PROMPT, localToday, categoryList);
+        String prompt = String.format(CREATE_ENTITY_PROMPT, localToday, categoryList, currentMonth);
 
         try {
             String response = openRouterService.chat(prompt, request.getQuestion());
             Map<String, Object> parsed = parseJsonResponse(response);
+            if ("add_transaction".equals(intent)) {
+            List<ChatActionPayload> transactions = extractChatTransactions(
+                    firebaseUid,
+                    parsed,
+                    categories,
+                    localToday);
+            ChatActionPayload actionPayload = transactions.isEmpty() ? null : transactions.get(0);
 
-            Map<String, Object> payload = parsed.containsKey("payload") ? (Map<String, Object>) parsed.get("payload")
-                    : parsed;
-
-            Double amount = payload.containsKey("amount") && payload.get("amount") != null
-                    ? ((Number) payload.get("amount")).doubleValue()
-                    : null;
-            String category = (String) payload.getOrDefault("category", "");
-            String note = (String) payload.getOrDefault("note", "");
-            String noteSummary = (String) payload.getOrDefault("noteSummary", "");
-            String date = (String) payload.getOrDefault("date", localToday);
-            String merchant = (String) payload.getOrDefault("merchant", "");
-
-            // Resolve category name against user's actual categories
-            // If no match found, create a new category
-            CategoryEntity resolvedCategoryEntity = resolveOrCreateCategory(firebaseUid, category, categories);
-
-            ChatActionPayload actionPayload = ChatActionPayload.builder()
-                    .amount(amount != null && amount > 0 ? amount : null)
-                    .category(resolvedCategoryEntity != null ? resolvedCategoryEntity.getName() : null)
-                    .categoryId(resolvedCategoryEntity != null ? resolvedCategoryEntity.getId().toString() : null)
-                    .note(note != null && !note.isEmpty() ? note : null)
-                    .noteSummary(noteSummary != null && !noteSummary.isEmpty() ? noteSummary : null)
-                    .date(date != null && !date.isEmpty() ? date : localToday)
-                    .merchant(merchant != null && !merchant.isEmpty() ? merchant : null)
-                    .build();
-
-            // Check for missing required fields
-            List<String> missingFields = new ArrayList<>();
-            if (actionPayload.getAmount() == null)
-                missingFields.add("amount");
-            if (actionPayload.getCategory() == null || actionPayload.getCategory().isEmpty())
-                missingFields.add("category");
+            List<String> missingFields = actionPayload == null
+                    ? List.of("amount", "category")
+                    : findMissingFields(actionPayload);
 
             String answer = "";
             if (!missingFields.isEmpty()) {
                 answer = "Please share the missing " + String.join(" and ", missingFields)
-                        + " so I can prepare this expense.";
+                        + " so I can prepare this transaction.";
+            } else if (transactions.size() > 1) {
+                answer = String.format("Prepared %d transactions from your message.", transactions.size());
             }
 
             return ChatResponse.builder()
@@ -407,7 +445,35 @@ public class AiOrchestratorService {
                     .dataPoints(dataPoints)
                     .confidence(
                             parsed.containsKey("confidence") ? ((Number) parsed.get("confidence")).doubleValue() : 0.8)
-                    .intent("add_expense")
+                    .intent(intent)
+                    .silentAction(true)
+                    .payload(actionPayload)
+                    .transactions(transactions)
+                    .needsConfirmation(false)
+                    .safetyWarnings(new ArrayList<>())
+                    .build();
+            }
+
+            ChatActionPayload actionPayload = buildNonTransactionPayload(
+                    firebaseUid,
+                    intent,
+                    parsed,
+                    categories,
+                    localToday,
+                    currentMonth);
+            List<String> missingFields = findMissingFieldsForIntent(intent, actionPayload);
+            String answer = missingFields.isEmpty()
+                    ? ""
+                    : "Please share the missing " + String.join(" and ", missingFields)
+                    + " so I can prepare this " + describeIntent(intent) + ".";
+
+            return ChatResponse.builder()
+                    .answer(answer)
+                    .queryUsed(request.getQuestion())
+                    .dataPoints(dataPoints)
+                    .confidence(
+                            parsed.containsKey("confidence") ? ((Number) parsed.get("confidence")).doubleValue() : 0.8)
+                    .intent(intent)
                     .silentAction(true)
                     .payload(actionPayload)
                     .needsConfirmation(false)
@@ -415,13 +481,13 @@ public class AiOrchestratorService {
                     .build();
 
         } catch (Exception e) {
-            log.error("Error handling add_expense intent: ", e);
+            log.error("Error handling {} intent: ", intent, e);
             return ChatResponse.builder()
                     .answer("I couldn't parse your expense. Could you rephrase?")
                     .queryUsed(request.getQuestion())
                     .dataPoints(dataPoints)
                     .confidence(0.0)
-                    .intent("add_expense")
+                    .intent(intent)
                     .needsConfirmation(true)
                     .safetyWarnings(List.of("Add expense parsing failed"))
                     .build();
@@ -438,19 +504,36 @@ public class AiOrchestratorService {
             return "query_expenses";
         }
 
-        // Add-expense signals
+        if (lower.contains("budget")) {
+            return "add_budget";
+        }
+
+        if (lower.contains("goal") || lower.contains("save up") || lower.contains("saving for")) {
+            return "add_goal";
+        }
+
+        if (lower.contains("recurring") || lower.contains("every month") || lower.contains("every week")
+                || lower.contains("subscription")) {
+            return "add_recurring_expense";
+        }
+
+        if (lower.contains("category")) {
+            return "add_category";
+        }
+
+        // Add-transaction signals
         if (lower.contains("add") || lower.contains("record") || lower.contains("log")
                 || lower.contains("save") || lower.contains("spent") || lower.contains("paid")
                 || lower.contains("income") || lower.contains("expense")
                 || lower.contains("earned") || lower.contains("received")
                 || lower.contains("salary") || lower.contains("bonus")
                 || lower.contains("refund") || lower.contains("reimbursement")) {
-            return "add_expense";
+            return "add_transaction";
         }
 
         // Bare transaction statements like "$2.5 entertainment income"
         if (AMOUNT_TOKEN_PATTERN.matcher(lower).find()) {
-            return "add_expense";
+            return "add_transaction";
         }
 
         return "none";
@@ -509,6 +592,14 @@ public class AiOrchestratorService {
     }
 
     private CategoryEntity resolveOrCreateCategory(String firebaseUid, String requested, List<CategoryEntity> categories) {
+        return resolveOrCreateCategory(firebaseUid, requested, categories, CategoryType.EXPENSE);
+    }
+
+    private CategoryEntity resolveOrCreateCategory(
+            String firebaseUid,
+            String requested,
+            List<CategoryEntity> categories,
+            CategoryType categoryType) {
         if (requested == null || requested.isEmpty())
             return null;
 
@@ -516,13 +607,14 @@ public class AiOrchestratorService {
 
         // First try to resolve existing category
         for (CategoryEntity c : categories) {
-            if (c.getName().equalsIgnoreCase(lower)) {
+            if (c.getName().equalsIgnoreCase(lower) && matchesCategoryType(c, categoryType)) {
                 return c;
             }
         }
         // Partial match
         for (CategoryEntity c : categories) {
-            if (c.getName().toLowerCase().contains(lower) || lower.contains(c.getName().toLowerCase())) {
+            if ((c.getName().toLowerCase().contains(lower) || lower.contains(c.getName().toLowerCase()))
+                    && matchesCategoryType(c, categoryType)) {
                 return c;
             }
         }
@@ -535,12 +627,263 @@ public class AiOrchestratorService {
                     requested.trim(),
                     "tag",  // default icon
                     "#6366F1", // default color (indigo)
-                    CategoryType.EXPENSE
+                    categoryType
             );
+            categories.add(newCategory);
             return newCategory;
         } catch (Exception e) {
             log.error("Error creating category '{}': {}", requested, e.getMessage());
             return null;
+        }
+    }
+
+    private boolean matchesCategoryType(CategoryEntity category, CategoryType categoryType) {
+        if (categoryType == null) {
+            return true;
+        }
+        return categoryType.name().equalsIgnoreCase(category.getCategoryType());
+    }
+
+    private List<ChatActionPayload> extractChatTransactions(
+            String firebaseUid,
+            Map<String, Object> parsed,
+            List<CategoryEntity> categories,
+            String localToday) {
+        List<Map<String, Object>> rawTransactions = new ArrayList<>();
+        Object rawList = parsed.get("transactions");
+        if (rawList instanceof List<?> items) {
+            for (Object item : items) {
+                if (item instanceof Map<?, ?> mapItem) {
+                    rawTransactions.add((Map<String, Object>) mapItem);
+                }
+            }
+        }
+
+        if (rawTransactions.isEmpty()) {
+            Object payload = parsed.get("payload");
+            if (payload instanceof Map<?, ?> mapPayload) {
+                rawTransactions.add((Map<String, Object>) mapPayload);
+            } else if (parsed.containsKey("amount")) {
+                rawTransactions.add(parsed);
+            }
+        }
+
+        return rawTransactions.stream()
+                .map(rawTransaction -> buildChatActionPayload(firebaseUid, rawTransaction, categories, localToday))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+    }
+
+    private ChatActionPayload buildChatActionPayload(
+            String firebaseUid,
+            Map<String, Object> rawTransaction,
+            List<CategoryEntity> categories,
+            String localToday) {
+        if (rawTransaction == null || rawTransaction.isEmpty()) {
+            return null;
+        }
+
+        String transactionType = normalizeChatTransactionType(rawTransaction.get("type"));
+        String category = stringValue(rawTransaction.get("category"));
+        CategoryType categoryType = "income".equals(transactionType) ? CategoryType.INCOME : CategoryType.EXPENSE;
+        CategoryEntity resolvedCategoryEntity = resolveOrCreateCategory(firebaseUid, category, categories, categoryType);
+
+        Double amount = numberValue(rawTransaction.get("amount"));
+        String note = stringValue(rawTransaction.get("note"));
+        String noteSummary = stringValue(firstNonNull(rawTransaction.get("noteSummary"), rawTransaction.get("note_summary")));
+        String merchant = stringValue(rawTransaction.get("merchant"));
+        String date = stringValue(rawTransaction.get("date"));
+        String currency = normalizeCurrencyCode(firstNonNull(rawTransaction.get("currency"), rawTransaction.get("currencyCode")));
+
+        return ChatActionPayload.builder()
+                .type(transactionType)
+                .amount(amount != null && amount > 0 ? amount : null)
+                .currency(currency)
+                .category(resolvedCategoryEntity != null ? resolvedCategoryEntity.getName() : null)
+                .categoryId(resolvedCategoryEntity != null ? resolvedCategoryEntity.getId().toString() : null)
+                .note(note)
+                .noteSummary(noteSummary)
+                .date(date != null && !date.isEmpty() ? date : localToday)
+                .merchant(merchant)
+                .build();
+    }
+
+    private List<String> findMissingFields(ChatActionPayload payload) {
+        List<String> missingFields = new ArrayList<>();
+        if (payload.getAmount() == null) {
+            missingFields.add("amount");
+        }
+        if (payload.getCategory() == null || payload.getCategory().isEmpty()) {
+            missingFields.add("category");
+        }
+        return missingFields;
+    }
+
+    private List<String> findMissingFieldsForIntent(String intent, ChatActionPayload payload) {
+        if (payload == null) {
+            return switch (intent) {
+                case "add_budget" -> List.of("month", "total amount");
+                case "add_goal" -> List.of("name", "target amount", "deadline");
+                case "add_category" -> List.of("name");
+                case "add_recurring_expense" -> List.of("amount", "category", "frequency");
+                default -> List.of("details");
+            };
+        }
+
+        List<String> missingFields = new ArrayList<>();
+        switch (intent) {
+            case "add_budget" -> {
+                if (payload.getMonth() == null || payload.getMonth().isBlank()) missingFields.add("month");
+                if (payload.getTotalAmount() == null) missingFields.add("total amount");
+            }
+            case "add_goal" -> {
+                if (payload.getName() == null || payload.getName().isBlank()) missingFields.add("name");
+                if (payload.getTargetAmount() == null) missingFields.add("target amount");
+                if (payload.getDeadline() == null || payload.getDeadline().isBlank()) missingFields.add("deadline");
+            }
+            case "add_category" -> {
+                if (payload.getName() == null || payload.getName().isBlank()) missingFields.add("name");
+            }
+            case "add_recurring_expense" -> {
+                if (payload.getAmount() == null) missingFields.add("amount");
+                if (payload.getCategory() == null || payload.getCategory().isBlank()) missingFields.add("category");
+                if (payload.getFrequency() == null || payload.getFrequency().isBlank()) missingFields.add("frequency");
+            }
+            default -> {
+            }
+        }
+        return missingFields;
+    }
+
+    private String describeIntent(String intent) {
+        return switch (intent) {
+            case "add_budget" -> "budget";
+            case "add_goal" -> "goal";
+            case "add_category" -> "category";
+            case "add_recurring_expense" -> "recurring expense";
+            default -> "item";
+        };
+    }
+
+    private ChatActionPayload buildNonTransactionPayload(
+            String firebaseUid,
+            String intent,
+            Map<String, Object> parsed,
+            List<CategoryEntity> categories,
+            String localToday,
+            String currentMonth) {
+        Object payloadValue = parsed.get("payload");
+        Map<String, Object> payload = payloadValue instanceof Map<?, ?> mapPayload
+                ? (Map<String, Object>) mapPayload
+                : parsed;
+
+        return switch (intent) {
+            case "add_budget" -> ChatActionPayload.builder()
+                    .kind("budget")
+                    .month(stringValue(payload.get("month")) != null ? stringValue(payload.get("month")) : currentMonth)
+                    .totalAmount(numberValue(firstNonNull(payload.get("totalAmount"), payload.get("total_amount"))))
+                    .build();
+            case "add_goal" -> ChatActionPayload.builder()
+                    .kind("goal")
+                    .name(stringValue(payload.get("name")))
+                    .targetAmount(numberValue(firstNonNull(payload.get("targetAmount"), payload.get("target_amount"))))
+                    .currentAmount(numberValue(firstNonNull(payload.get("currentAmount"), payload.get("current_amount"))) != null
+                            ? numberValue(firstNonNull(payload.get("currentAmount"), payload.get("current_amount")))
+                            : 0.0)
+                    .deadline(stringValue(payload.get("deadline")) != null ? stringValue(payload.get("deadline")) : localToday)
+                    .color(stringValue(payload.get("color")) != null ? stringValue(payload.get("color")) : "#10B981")
+                    .icon(stringValue(payload.get("icon")) != null ? stringValue(payload.get("icon")) : "target")
+                    .build();
+            case "add_category" -> ChatActionPayload.builder()
+                    .kind("category")
+                    .name(stringValue(payload.get("name")))
+                    .categoryType(normalizeChatTransactionType(firstNonNull(payload.get("categoryType"), payload.get("type"))))
+                    .color(stringValue(payload.get("color")) != null ? stringValue(payload.get("color")) : "#6366F1")
+                    .icon(stringValue(payload.get("icon")) != null ? stringValue(payload.get("icon")) : "tag")
+                    .build();
+            case "add_recurring_expense" -> {
+                String category = stringValue(payload.get("category"));
+                String type = normalizeChatTransactionType(firstNonNull(payload.get("categoryType"), payload.get("type")));
+                CategoryType categoryType = "income".equals(type) ? CategoryType.INCOME : CategoryType.EXPENSE;
+                CategoryEntity resolvedCategoryEntity = resolveOrCreateCategory(firebaseUid, category, categories, categoryType);
+                yield ChatActionPayload.builder()
+                        .kind("recurring_expense")
+                        .type(type)
+                        .amount(numberValue(payload.get("amount")))
+                        .currency(normalizeCurrencyCode(payload.get("currency")))
+                        .category(resolvedCategoryEntity != null ? resolvedCategoryEntity.getName() : null)
+                        .categoryId(resolvedCategoryEntity != null ? resolvedCategoryEntity.getId().toString() : null)
+                        .note(stringValue(payload.get("note")))
+                        .frequency(stringValue(payload.get("frequency")) != null ? stringValue(payload.get("frequency")) : "monthly")
+                        .startDate(stringValue(firstNonNull(payload.get("startDate"), payload.get("start_date"))) != null
+                                ? stringValue(firstNonNull(payload.get("startDate"), payload.get("start_date")))
+                                : localToday)
+                        .endDate(stringValue(firstNonNull(payload.get("endDate"), payload.get("end_date"))))
+                        .notificationEnabled(booleanValue(payload.get("notificationEnabled"), true))
+                        .notificationDaysBefore(integerValue(payload.get("notificationDaysBefore"), 1))
+                        .build();
+            }
+            default -> null;
+        };
+    }
+
+    private Object firstNonNull(Object primary, Object secondary) {
+        return primary != null ? primary : secondary;
+    }
+
+    private String stringValue(Object rawValue) {
+        if (rawValue == null) {
+            return null;
+        }
+        String value = String.valueOf(rawValue).trim();
+        return value.isEmpty() ? null : value;
+    }
+
+    private Double numberValue(Object rawValue) {
+        if (rawValue instanceof Number number) {
+            return number.doubleValue();
+        }
+        if (rawValue == null) {
+            return null;
+        }
+        try {
+            return Double.parseDouble(String.valueOf(rawValue).trim());
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private String normalizeChatTransactionType(Object rawValue) {
+        String value = stringValue(rawValue);
+        return value != null && value.equalsIgnoreCase("income") ? "income" : "expense";
+    }
+
+    private String normalizeCurrencyCode(Object rawValue) {
+        String value = stringValue(rawValue);
+        return value == null ? "USD" : value.toUpperCase(Locale.ROOT);
+    }
+
+    private Boolean booleanValue(Object rawValue, boolean fallback) {
+        if (rawValue instanceof Boolean booleanValue) {
+            return booleanValue;
+        }
+        if (rawValue == null) {
+            return fallback;
+        }
+        return Boolean.parseBoolean(String.valueOf(rawValue).trim());
+    }
+
+    private Integer integerValue(Object rawValue, int fallback) {
+        if (rawValue instanceof Number number) {
+            return number.intValue();
+        }
+        if (rawValue == null) {
+            return fallback;
+        }
+        try {
+            return Integer.parseInt(String.valueOf(rawValue).trim());
+        } catch (NumberFormatException ignored) {
+            return fallback;
         }
     }
 

@@ -1,5 +1,7 @@
 package com.wing.backendapiexpensespringboot.dto;
 
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -12,6 +14,7 @@ import java.util.Map;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public class ChatResponse {
 
     @Builder.Default
@@ -26,12 +29,14 @@ public class ChatResponse {
     @Builder.Default
     private Double confidence = 0.0;
 
-    private String intent; // "none", "add_expense", "query_expenses"
+    private String intent; // "none", "add_transaction", "add_budget", "add_goal", "add_category", "add_recurring_expense", "query_expenses"
 
     @Builder.Default
     private Boolean silentAction = false;
 
     private ChatActionPayload payload;
+    @Builder.Default
+    private List<ChatActionPayload> transactions = List.of();
     private ChatExplainability explainability;
 
     @Builder.Default

@@ -35,25 +35,25 @@ class AiOrchestratorServiceIntentDetectionTest {
     private AiOrchestratorService aiOrchestratorService;
 
     @Test
-    void detectIntent_shouldClassifyBareIncomeStatementAsAddExpense() {
+    void detectIntent_shouldClassifyBareIncomeStatementAsAddTransaction() {
         String intent = ReflectionTestUtils.invokeMethod(
                 aiOrchestratorService,
                 "detectIntent",
                 "$2.5 entertainment income"
         );
 
-        assertThat(intent).isEqualTo("add_expense");
+        assertThat(intent).isEqualTo("add_transaction");
     }
 
     @Test
-    void detectIntent_shouldClassifyAmountOnlyStatementAsAddExpense() {
+    void detectIntent_shouldClassifyAmountOnlyStatementAsAddTransaction() {
         String intent = ReflectionTestUtils.invokeMethod(
                 aiOrchestratorService,
                 "detectIntent",
                 "2.40 coffee"
         );
 
-        assertThat(intent).isEqualTo("add_expense");
+        assertThat(intent).isEqualTo("add_transaction");
     }
 
     @Test
@@ -68,14 +68,14 @@ class AiOrchestratorServiceIntentDetectionTest {
     }
 
     @Test
-    void detectIntent_shouldClassifyExplicitAddActionAsAddExpense() {
+    void detectIntent_shouldClassifyExplicitAddActionAsAddTransaction() {
         String intent = ReflectionTestUtils.invokeMethod(
                 aiOrchestratorService,
                 "detectIntent",
                 "Please add 5.50 for coffee"
         );
 
-        assertThat(intent).isEqualTo("add_expense");
+        assertThat(intent).isEqualTo("add_transaction");
     }
 
     @Test
