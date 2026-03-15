@@ -12,4 +12,6 @@ import java.util.UUID;
 public interface AiChatMessageRepository extends JpaRepository<AiChatMessageEntity, UUID> {
 
     Page<AiChatMessageEntity> findByFirebaseUidOrderByCreatedAtDesc(String firebaseUid, Pageable pageable);
+
+    long deleteByFirebaseUid(String firebaseUid);
 }

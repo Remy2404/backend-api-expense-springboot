@@ -3,6 +3,7 @@ package com.wing.backendapiexpensespringboot.service;
 import com.wing.backendapiexpensespringboot.dto.SyncPushRequestDto;
 import com.wing.backendapiexpensespringboot.dto.SyncPushResponseDto;
 import com.wing.backendapiexpensespringboot.model.CategoryEntity;
+import com.wing.backendapiexpensespringboot.model.BudgetEntity;
 import com.wing.backendapiexpensespringboot.model.ExpenseEntity;
 import com.wing.backendapiexpensespringboot.repository.BudgetRepository;
 import com.wing.backendapiexpensespringboot.repository.CategoryBudgetRepository;
@@ -133,5 +134,78 @@ class SyncServiceTest {
         assertEquals("synced", expenseCaptor.getValue().getSyncStatus());
         assertNotNull(expenseCaptor.getValue().getSyncedAt());
         assertEquals(1, response.getSyncedItems().getExpenses());
+    }
+
+    @Test
+    void pushBudgetUpsertsExistingMonthForSameUser() {
+        String firebaseUid = "firebase-user";
+        UUID incomingId = UUID.randomUUID();
+        UUID existingId = UUID.randomUUID();
+
+        BudgetEntity existing = new BudgetEntity();
+        existing.setId(existingId);
+        existing.setFirebaseUid(firebaseUid);
+        existing.setMonth("2026-03");
+        existing.setUpdatedAt(OffsetDateTime.parse("2026-03-14T10:00:00Z"));
+
+        when(budgetRepository.findById(incomingId)).thenReturn(Optional.empty());
+        when(budgetRepository.findByMonthAndFirebaseUid("2026-03", firebaseUid))
+                .thenReturn(Optional.of(existing));
+        when(budgetRepository.save(any(BudgetEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        SyncPushRequestDto.BudgetItem item = new SyncPushRequestDto.BudgetItem();
+        item.setId(incomingId.toString());
+        item.setMonth("2026-03");
+        item.setTotalAmount(300.0);
+        item.setUpdatedAt("2026-03-15T11:30:00Z");
+        item.setCategoryBudgets(List.of());
+
+        SyncPushRequestDto request = new SyncPushRequestDto();
+        request.setBudgets(List.of(item));
+
+        SyncPushResponseDto response = syncService.push(firebaseUid, request);
+
+        ArgumentCaptor<BudgetEntity> budgetCaptor = ArgumentCaptor.forClass(BudgetEntity.class);
+        verify(budgetRepository).save(budgetCaptor.capture());
+        verify(categoryBudgetRepository).deleteByBudgetId(existingId);
+
+        BudgetEntity saved = budgetCaptor.getValue();
+        assertEquals(existingId, saved.getId());
+        assertEquals("2026-03", saved.getMonth());
+        assertEquals(1, response.getSyncedItems().getBudgets());
+        assertEquals(0, response.getFailedItems().size());
+    }
+
+    @Test
+    void pushBudgetRejectsStaleUpdateAgainstExistingMonth() {
+        String firebaseUid = "firebase-user";
+        UUID incomingId = UUID.randomUUID();
+        UUID existingId = UUID.randomUUID();
+
+        BudgetEntity existing = new BudgetEntity();
+        existing.setId(existingId);
+        existing.setFirebaseUid(firebaseUid);
+        existing.setMonth("2026-03");
+        existing.setUpdatedAt(OffsetDateTime.parse("2026-03-15T12:00:00Z"));
+
+        when(budgetRepository.findById(incomingId)).thenReturn(Optional.empty());
+        when(budgetRepository.findByMonthAndFirebaseUid("2026-03", firebaseUid))
+                .thenReturn(Optional.of(existing));
+
+        SyncPushRequestDto.BudgetItem item = new SyncPushRequestDto.BudgetItem();
+        item.setId(incomingId.toString());
+        item.setMonth("2026-03");
+        item.setTotalAmount(275.0);
+        item.setUpdatedAt("2026-03-15T11:30:00Z");
+        item.setCategoryBudgets(List.of());
+
+        SyncPushRequestDto request = new SyncPushRequestDto();
+        request.setBudgets(List.of(item));
+
+        SyncPushResponseDto response = syncService.push(firebaseUid, request);
+
+        assertEquals(0, response.getSyncedItems().getBudgets());
+        assertEquals(1, response.getFailedItems().size());
+        assertEquals("Stale budget update", response.getFailedItems().get(0).getError());
     }
 }

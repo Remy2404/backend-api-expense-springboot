@@ -58,6 +58,11 @@ public class AiChatSessionService {
         return response;
     }
 
+    @Transactional
+    public long clearHistory(String firebaseUid) {
+        return aiChatMessageRepository.deleteByFirebaseUid(firebaseUid);
+    }
+
     private ChatRequest buildEffectiveRequest(String firebaseUid, ChatRequest request) {
         List<ChatHistoryMessage> requestHistory = request.getHistory() == null ? List.of() : request.getHistory();
         if (!requestHistory.isEmpty()) {

@@ -8,6 +8,7 @@ import com.wing.backendapiexpensespringboot.security.UserPrincipal;
 import com.wing.backendapiexpensespringboot.service.AiChatSessionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -44,6 +45,12 @@ public class AiChatController {
         return ResponseEntity.ok(ChatHistoryResponse.builder()
                 .messages(aiChatSessionService.getHistory(requireFirebaseUid(user), limit))
                 .build());
+    }
+
+    @DeleteMapping("/chat/history")
+    public ResponseEntity<Void> clearHistory(@AuthenticationPrincipal UserPrincipal user) {
+        aiChatSessionService.clearHistory(requireFirebaseUid(user));
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
 
     private String requireFirebaseUid(UserPrincipal user) {

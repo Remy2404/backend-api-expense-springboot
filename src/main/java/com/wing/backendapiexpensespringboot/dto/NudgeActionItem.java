@@ -7,33 +7,16 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.OffsetDateTime;
-import java.util.List;
-
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-public class NudgeItem {
+public class NudgeActionItem {
 
     private String id;
 
-    @Builder.Default
-    private String type = "";
+    private String label;
 
-    @Builder.Default
-    private String title = "";
-
-    @Builder.Default
-    private String body = "";
-
-    private String category;
-
-    @Builder.Default
-    private List<NudgeActionItem> actions = List.of();
-
-    private String severity;
-
-    private OffsetDateTime generatedAt;
+    private String action;
 }

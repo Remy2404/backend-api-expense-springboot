@@ -433,8 +433,7 @@ public class AiOrchestratorService {
 
             String answer = "";
             if (!missingFields.isEmpty()) {
-                answer = "Please share the missing " + String.join(" and ", missingFields)
-                        + " so I can prepare this transaction.";
+                answer = buildClarifyingAnswer(intent, actionPayload, missingFields, categories);
             } else if (transactions.size() > 1) {
                 answer = String.format("Prepared %d transactions from your message.", transactions.size());
             }
@@ -464,8 +463,7 @@ public class AiOrchestratorService {
             List<String> missingFields = findMissingFieldsForIntent(intent, actionPayload);
             String answer = missingFields.isEmpty()
                     ? ""
-                    : "Please share the missing " + String.join(" and ", missingFields)
-                    + " so I can prepare this " + describeIntent(intent) + ".";
+                    : buildClarifyingAnswer(intent, actionPayload, missingFields, categories);
 
             return ChatResponse.builder()
                     .answer(answer)
@@ -755,12 +753,91 @@ public class AiOrchestratorService {
         return missingFields;
     }
 
+    private String buildClarifyingAnswer(
+            String intent,
+            ChatActionPayload payload,
+            List<String> missingFields,
+            List<CategoryEntity> categories) {
+        if (payload != null
+                && missingFields.size() == 1
+                && "category".equals(missingFields.get(0))
+                && payload.getAmount() != null
+                && payload.getAmount() > 0) {
+            return buildCategoryClarificationQuestion(intent, payload, categories);
+        }
+
+        return "Please share the missing " + String.join(" and ", missingFields)
+                + " so I can prepare this " + describeIntent(intent) + ".";
+    }
+
+    private String buildCategoryClarificationQuestion(
+            String intent,
+            ChatActionPayload payload,
+            List<CategoryEntity> categories) {
+        String itemType = switch (intent) {
+            case "add_recurring_expense" -> "recurring expense";
+            case "add_transaction" -> "income".equalsIgnoreCase(payload.getType()) ? "income" : "expense";
+            default -> describeIntent(intent);
+        };
+
+        List<String> suggestions = categories.stream()
+                .filter(category -> matchesSuggestedCategoryType(category, payload))
+                .map(CategoryEntity::getName)
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(name -> !name.isEmpty())
+                .filter(name -> !"Other".equalsIgnoreCase(name))
+                .distinct()
+                .limit(3)
+                .collect(Collectors.toCollection(ArrayList::new));
+
+        String otherCategory = categories.stream()
+                .map(CategoryEntity::getName)
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(name -> "Other".equalsIgnoreCase(name))
+                .findFirst()
+                .orElse("Other");
+        suggestions.add(otherCategory);
+
+        StringBuilder question = new StringBuilder();
+        question.append(String.format(
+                Locale.US,
+                "What category should I use for the $%.2f %s?",
+                payload.getAmount(),
+                itemType));
+
+        for (int i = 0; i < suggestions.size(); i++) {
+            question.append("\n").append(i + 1).append(". ").append(suggestions.get(i));
+        }
+
+        return question.toString();
+    }
+
+    private boolean matchesSuggestedCategoryType(CategoryEntity category, ChatActionPayload payload) {
+        if (category == null) {
+            return false;
+        }
+
+        String expectedType = payload.getCategoryType();
+        if (expectedType == null || expectedType.isBlank()) {
+            expectedType = payload.getType();
+        }
+        if (expectedType == null || expectedType.isBlank()) {
+            expectedType = "expense";
+        }
+
+        String categoryType = category.getCategoryType();
+        return categoryType == null || categoryType.equalsIgnoreCase(expectedType);
+    }
+
     private String describeIntent(String intent) {
         return switch (intent) {
             case "add_budget" -> "budget";
             case "add_goal" -> "goal";
             case "add_category" -> "category";
             case "add_recurring_expense" -> "recurring expense";
+            case "add_transaction" -> "transaction";
             default -> "item";
         };
     }

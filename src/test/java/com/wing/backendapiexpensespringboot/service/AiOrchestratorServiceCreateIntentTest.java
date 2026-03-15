@@ -51,6 +51,9 @@ class AiOrchestratorServiceCreateIntentTest {
     void setUp() throws Exception {
         categories = List.of(
                 category("Food", "expense"),
+                category("Shopping", "expense"),
+                category("Transport", "expense"),
+                category("Other", "expense"),
                 category("Salary", "income"),
                 category("Subscriptions", "expense")
         );
@@ -180,6 +183,63 @@ class AiOrchestratorServiceCreateIntentTest {
         assertThat(response.getPayload().getFrequency()).isEqualTo("monthly");
         assertThat(response.getPayload().getStartDate()).isEqualTo("2026-03-15");
         assertThat(response.getAnswer()).isBlank();
+    }
+
+    @Test
+    void chat_shouldAskSmartCategoryClarificationForTransaction() {
+        parsedResponse = Map.of(
+                "intent", "add_transaction",
+                "confidence", 0.94,
+                "transactions", List.of(Map.of(
+                        "kind", "transaction",
+                        "type", "expense",
+                        "amount", 18,
+                        "currency", "USD",
+                        "note", "Lunch"
+                ))
+        );
+
+        ChatResponse response = aiOrchestratorService.chat("uid-1", ChatRequest.builder()
+                .question("Add an $18 expense")
+                .localNowIso("2026-03-15T10:00:00Z")
+                .build());
+
+        assertThat(response.getIntent()).isEqualTo("add_transaction");
+        assertThat(response.getAnswer()).isEqualTo("""
+                What category should I use for the $18.00 expense?
+                1. Food
+                2. Shopping
+                3. Transport
+                4. Other""");
+    }
+
+    @Test
+    void chat_shouldAskSmartCategoryClarificationForRecurringExpense() {
+        parsedResponse = Map.of(
+                "intent", "add_recurring_expense",
+                "confidence", 0.94,
+                "payload", Map.of(
+                        "kind", "recurring_expense",
+                        "amount", 12,
+                        "currency", "USD",
+                        "note", "Netflix",
+                        "frequency", "monthly",
+                        "startDate", "2026-03-15"
+                )
+        );
+
+        ChatResponse response = aiOrchestratorService.chat("uid-1", ChatRequest.builder()
+                .question("Add a recurring $12 Netflix expense")
+                .localNowIso("2026-03-15T10:00:00Z")
+                .build());
+
+        assertThat(response.getIntent()).isEqualTo("add_recurring_expense");
+        assertThat(response.getAnswer()).isEqualTo("""
+                What category should I use for the $12.00 recurring expense?
+                1. Food
+                2. Shopping
+                3. Transport
+                4. Other""");
     }
 
     private CategoryEntity category(String name, String type) {

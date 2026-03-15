@@ -326,22 +326,28 @@ public class SyncService {
             List<SyncPushRequestDto.BudgetItem> items,
             SyncPushResponseDto response) {
         for (SyncPushRequestDto.BudgetItem item : items) {
-            UUID id = parseUuid(item.getId());
-            if (id == null) {
+            UUID requestedId = parseUuid(item.getId());
+            if (requestedId == null) {
                 addFailed(response, item.getId(), "budget", "Invalid budget id");
                 continue;
             }
 
-            Optional<BudgetEntity> existingOpt = budgetRepository.findById(id);
+            String normalizedMonth = normalizeText(item.getMonth(), "");
+            Optional<BudgetEntity> existingOpt = budgetRepository.findById(requestedId);
             if (existingOpt.isPresent() && !firebaseUid.equals(existingOpt.get().getFirebaseUid())) {
                 addFailed(response, item.getId(), "budget", "Forbidden budget ownership");
                 continue;
             }
 
+            if (existingOpt.isEmpty() && !normalizedMonth.isBlank()) {
+                existingOpt = budgetRepository.findByMonthAndFirebaseUid(normalizedMonth, firebaseUid);
+            }
+
+            UUID persistedId = existingOpt.map(BudgetEntity::getId).orElse(requestedId);
             boolean seeded = false;
             if (existingOpt.isEmpty()) {
-                seedBudgetRow(id, firebaseUid);
-                existingOpt = budgetRepository.findById(id);
+                seedBudgetRow(persistedId, firebaseUid);
+                existingOpt = budgetRepository.findById(persistedId);
                 seeded = true;
             }
             BudgetEntity entity = existingOpt.orElseGet(BudgetEntity::new);
@@ -351,9 +357,9 @@ public class SyncService {
                 continue;
             }
 
-            entity.setId(id);
+            entity.setId(persistedId);
             entity.setFirebaseUid(firebaseUid);
-            entity.setMonth(normalizeText(item.getMonth(), ""));
+            entity.setMonth(normalizedMonth);
             entity.setTotalAmount(toBigDecimal(item.getTotalAmount()));
             entity.setIsDeleted(Boolean.TRUE.equals(item.getIsDeleted()));
             entity.setDeletedAt(parseDateTime(item.getDeletedAt()));
