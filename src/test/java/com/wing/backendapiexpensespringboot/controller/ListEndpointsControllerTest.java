@@ -11,10 +11,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
@@ -39,22 +39,22 @@ class ListEndpointsControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
+    @MockitoBean
     private BudgetQueryService budgetQueryService;
 
-    @MockBean
+    @MockitoBean
     private BudgetSummaryService budgetSummaryService;
 
-    @MockBean
+    @MockitoBean
     private SavingsGoalQueryService savingsGoalQueryService;
 
-    @MockBean
+    @MockitoBean
     private RecurringExpenseQueryService recurringExpenseQueryService;
 
-    @MockBean
+    @MockitoBean
     private InsightQueryService insightQueryService;
 
-    @MockBean
+    @MockitoBean
     private FirebaseAuthFilter firebaseAuthFilter;
 
     @Test
@@ -72,12 +72,11 @@ class ListEndpointsControllerTest {
         when(savingsGoalQueryService.getGoals(FIREBASE_UID, 10, 25, true)).thenReturn(List.of());
 
         mockMvc.perform(
-                        get("/goals")
-                                .param("offset", "10")
-                                .param("limit", "25")
-                                .param("includeArchived", "true")
-                                .with(authenticatedUser())
-                )
+                get("/goals")
+                        .param("offset", "10")
+                        .param("limit", "25")
+                        .param("includeArchived", "true")
+                        .with(authenticatedUser()))
                 .andExpect(status().isOk());
 
         verify(savingsGoalQueryService).getGoals(FIREBASE_UID, 10, 25, true);
@@ -88,12 +87,11 @@ class ListEndpointsControllerTest {
         when(recurringExpenseQueryService.getRecurringExpenses(FIREBASE_UID, 5, 10, true)).thenReturn(List.of());
 
         mockMvc.perform(
-                        get("/recurring-expenses")
-                                .param("offset", "5")
-                                .param("limit", "10")
-                                .param("includeArchived", "true")
-                                .with(authenticatedUser())
-                )
+                get("/recurring-expenses")
+                        .param("offset", "5")
+                        .param("limit", "10")
+                        .param("includeArchived", "true")
+                        .with(authenticatedUser()))
                 .andExpect(status().isOk());
 
         verify(recurringExpenseQueryService).getRecurringExpenses(FIREBASE_UID, 5, 10, true);
@@ -117,8 +115,7 @@ class ListEndpointsControllerTest {
         UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
                 principal,
                 null,
-                principal.getAuthorities()
-        );
+                principal.getAuthorities());
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(auth);
         return request -> {

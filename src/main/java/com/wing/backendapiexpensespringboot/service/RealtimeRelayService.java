@@ -61,15 +61,13 @@ public class RealtimeRelayService {
                 for (String chunk : chunk(answer)) {
                     publishChatEvent("ai.chat.delta", firebaseUid, requestId, Map.of(
                             "requestId", requestId,
-                            "delta", chunk
-                    ));
+                            "delta", chunk));
                 }
             }
 
             publishChatEvent("ai.chat.complete", firebaseUid, requestId, Map.of(
                     "requestId", requestId,
-                    "response", objectToMap(response)
-            ));
+                    "response", objectToMap(response)));
         }).exceptionally(error -> {
             log.warn("Failed to stream chat response to realtime relay: {}", error.getMessage());
             return null;
@@ -100,7 +98,6 @@ public class RealtimeRelayService {
         return chunks;
     }
 
-    @SuppressWarnings("unchecked")
     private Map<String, Object> objectToMap(Object value) {
         return objectMapper.convertValue(value, Map.class);
     }
@@ -110,7 +107,8 @@ public class RealtimeRelayService {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             headers.setBearerAuth(realtimeConfig.getRelaySecret());
-            restTemplate.postForEntity(realtimeConfig.getRelayUrl() + "/internal/events", new HttpEntity<>(payload, headers), Void.class);
+            restTemplate.postForEntity(realtimeConfig.getRelayUrl() + "/internal/events",
+                    new HttpEntity<>(payload, headers), Void.class);
         } catch (Exception exception) {
             log.warn("Failed to publish realtime relay event: {}", exception.getMessage());
         }

@@ -15,57 +15,55 @@ import java.util.Map;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+        @ExceptionHandler(AppException.class)
+        public ResponseEntity<Map<String, String>> handleAppException(AppException ex) {
+                log.warn("App error: statusCode={}, message={}", ex.getStatusCode(), ex.getMessage());
+                return ResponseEntity
+                                .status(ex.getStatusCode())
+                                .body(Map.of("detail", ex.getMessage()));
+        }
 
-    @SuppressWarnings("null")
-    @ExceptionHandler(AppException.class)
-    public ResponseEntity<Map<String, String>> handleAppException(AppException ex) {
-        log.warn("App error: statusCode={}, message={}", ex.getStatusCode(), ex.getMessage());
-        return ResponseEntity
-                .status(ex.getStatusCode())
-                .body(Map.of("detail", ex.getMessage()));
-    }
+        @ExceptionHandler(MethodArgumentNotValidException.class)
+        public ResponseEntity<Map<String, String>> handleValidationException(MethodArgumentNotValidException ex) {
+                String message = ex.getBindingResult().getFieldErrors().stream()
+                                .map(error -> error.getField() + ": " + error.getDefaultMessage())
+                                .findFirst()
+                                .orElse("Validation error");
+                return ResponseEntity
+                                .status(HttpStatus.BAD_REQUEST)
+                                .body(Map.of("detail", message));
+        }
 
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Map<String, String>> handleValidationException(MethodArgumentNotValidException ex) {
-        String message = ex.getBindingResult().getFieldErrors().stream()
-                .map(error -> error.getField() + ": " + error.getDefaultMessage())
-                .findFirst()
-                .orElse("Validation error");
-        return ResponseEntity
-                .status(HttpStatus.BAD_REQUEST)
-                .body(Map.of("detail", message));
-    }
+        @ExceptionHandler(NoResourceFoundException.class)
+        public ResponseEntity<Map<String, String>> handleNoResourceFoundException(NoResourceFoundException ex) {
+                return ResponseEntity
+                                .status(HttpStatus.NOT_FOUND)
+                                .body(Map.of("detail", "Resource not found."));
+        }
 
-    @ExceptionHandler(NoResourceFoundException.class)
-    public ResponseEntity<Map<String, String>> handleNoResourceFoundException(NoResourceFoundException ex) {
-        return ResponseEntity
-                .status(HttpStatus.NOT_FOUND)
-                .body(Map.of("detail", "Resource not found."));
-    }
+        @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+        public ResponseEntity<Map<String, String>> handleOptimisticLockException(
+                        ObjectOptimisticLockingFailureException ex) {
+                log.warn("Optimistic locking conflict: {}", ex.getMessage());
+                return ResponseEntity
+                                .status(HttpStatus.CONFLICT)
+                                .body(Map.of("detail", "Record was changed concurrently. Please refresh and retry."));
+        }
 
-    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
-    public ResponseEntity<Map<String, String>> handleOptimisticLockException(
-            ObjectOptimisticLockingFailureException ex) {
-        log.warn("Optimistic locking conflict: {}", ex.getMessage());
-        return ResponseEntity
-                .status(HttpStatus.CONFLICT)
-                .body(Map.of("detail", "Record was changed concurrently. Please refresh and retry."));
-    }
+        @ExceptionHandler(InvalidDataAccessApiUsageException.class)
+        public ResponseEntity<Map<String, String>> handleInvalidDataAccessApiUsage(
+                        InvalidDataAccessApiUsageException ex) {
+                log.warn("Persistence usage conflict: {}", ex.getMessage());
+                return ResponseEntity
+                                .status(HttpStatus.CONFLICT)
+                                .body(Map.of("detail", "Persistence conflict. Please retry the request."));
+        }
 
-    @ExceptionHandler(InvalidDataAccessApiUsageException.class)
-    public ResponseEntity<Map<String, String>> handleInvalidDataAccessApiUsage(
-            InvalidDataAccessApiUsageException ex) {
-        log.warn("Persistence usage conflict: {}", ex.getMessage());
-        return ResponseEntity
-                .status(HttpStatus.CONFLICT)
-                .body(Map.of("detail", "Persistence conflict. Please retry the request."));
-    }
-
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<Map<String, String>> handleGenericException(Exception ex) {
-        log.error("Unexpected error: ", ex);
-        return ResponseEntity
-                .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of("detail", "Internal server error."));
-    }
+        @ExceptionHandler(Exception.class)
+        public ResponseEntity<Map<String, String>> handleGenericException(Exception ex) {
+                log.error("Unexpected error: ", ex);
+                return ResponseEntity
+                                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                .body(Map.of("detail", "Internal server error."));
+        }
 }

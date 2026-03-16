@@ -9,10 +9,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
@@ -31,13 +31,13 @@ class BudgetControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
+    @MockitoBean
     private BudgetQueryService budgetQueryService;
 
-    @MockBean
+    @MockitoBean
     private BudgetSummaryService budgetSummaryService;
 
-    @MockBean
+    @MockitoBean
     private FirebaseAuthFilter firebaseAuthFilter;
 
     @Test
@@ -50,8 +50,8 @@ class BudgetControllerTest {
                         .build());
 
         mockMvc.perform(get("/budgets/summary")
-                        .param("month", "2026-03")
-                        .with(authenticatedUser()))
+                .param("month", "2026-03")
+                .with(authenticatedUser()))
                 .andExpect(status().isOk());
 
         verify(budgetSummaryService).getBudgetSummary(eq(FIREBASE_UID), eq("2026-03"));
@@ -65,8 +65,7 @@ class BudgetControllerTest {
         UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
                 principal,
                 null,
-                principal.getAuthorities()
-        );
+                principal.getAuthorities());
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(auth);
         return request -> {

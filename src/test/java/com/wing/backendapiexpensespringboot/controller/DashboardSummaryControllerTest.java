@@ -10,12 +10,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -27,72 +27,71 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc(addFilters = false)
 class DashboardSummaryControllerTest {
 
-    private static final String FIREBASE_UID = "firebase-user-1";
+        private static final String FIREBASE_UID = "firebase-user-1";
 
-    @Autowired
-    private MockMvc mockMvc;
+        @Autowired
+        private MockMvc mockMvc;
 
-    @MockBean
-    private DashboardSummaryService dashboardSummaryService;
+        @MockitoBean
+        private DashboardSummaryService dashboardSummaryService;
 
-    @MockBean
-    private FinanceSummaryService financeSummaryService;
+        @MockitoBean
+        private FinanceSummaryService financeSummaryService;
 
-    @MockBean
-    private FirebaseAuthFilter firebaseAuthFilter;
+        @MockitoBean
+        private FirebaseAuthFilter firebaseAuthFilter;
 
-    @Test
-    void dashboardSummaryDelegatesToDashboardSummaryService() throws Exception {
-        when(dashboardSummaryService.getSummary(eq(FIREBASE_UID)))
-                .thenReturn(DashboardSummaryResponseDto.builder()
-                        .totalIncome(100.0)
-                        .totalExpense(40.0)
-                        .balance(60.0)
-                        .transactionCount(10)
-                        .monthlyIncome(30.0)
-                        .monthlyExpense(20.0)
-                        .build());
+        @Test
+        void dashboardSummaryDelegatesToDashboardSummaryService() throws Exception {
+                when(dashboardSummaryService.getSummary(eq(FIREBASE_UID)))
+                                .thenReturn(DashboardSummaryResponseDto.builder()
+                                                .totalIncome(100.0)
+                                                .totalExpense(40.0)
+                                                .balance(60.0)
+                                                .transactionCount(10)
+                                                .monthlyIncome(30.0)
+                                                .monthlyExpense(20.0)
+                                                .build());
 
-        mockMvc.perform(get("/dashboard/summary").with(authenticatedUser()))
-                .andExpect(status().isOk());
+                mockMvc.perform(get("/dashboard/summary").with(authenticatedUser()))
+                                .andExpect(status().isOk());
 
-        verify(dashboardSummaryService).getSummary(eq(FIREBASE_UID));
-    }
+                verify(dashboardSummaryService).getSummary(eq(FIREBASE_UID));
+        }
 
-    @Test
-    void legacyDashboardSummaryStillDelegatesToFinanceService() throws Exception {
-        when(financeSummaryService.getSummary(eq(FIREBASE_UID), eq("all-time")))
-                .thenReturn(FinanceSummaryResponseDto.builder()
-                        .period("all-time")
-                        .periodStart(null)
-                        .periodEnd(null)
-                        .transactionCount(10)
-                        .totalIncome(100.0)
-                        .totalExpense(40.0)
-                        .balance(60.0)
-                        .build());
+        @Test
+        void legacyDashboardSummaryStillDelegatesToFinanceService() throws Exception {
+                when(financeSummaryService.getSummary(eq(FIREBASE_UID), eq("all-time")))
+                                .thenReturn(FinanceSummaryResponseDto.builder()
+                                                .period("all-time")
+                                                .periodStart(null)
+                                                .periodEnd(null)
+                                                .transactionCount(10)
+                                                .totalIncome(100.0)
+                                                .totalExpense(40.0)
+                                                .balance(60.0)
+                                                .build());
 
-        mockMvc.perform(get("/dashboard-summary").with(authenticatedUser()))
-                .andExpect(status().isOk());
+                mockMvc.perform(get("/dashboard-summary").with(authenticatedUser()))
+                                .andExpect(status().isOk());
 
-        verify(financeSummaryService).getSummary(eq(FIREBASE_UID), eq("all-time"));
-    }
+                verify(financeSummaryService).getSummary(eq(FIREBASE_UID), eq("all-time"));
+        }
 
-    private RequestPostProcessor authenticatedUser() {
-        UserPrincipal principal = UserPrincipal.builder()
-                .firebaseUid(FIREBASE_UID)
-                .role("USER")
-                .build();
-        UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
-                principal,
-                null,
-                principal.getAuthorities()
-        );
-        SecurityContext context = SecurityContextHolder.createEmptyContext();
-        context.setAuthentication(auth);
-        return request -> {
-            SecurityContextHolder.setContext(context);
-            return request;
-        };
-    }
+        private RequestPostProcessor authenticatedUser() {
+                UserPrincipal principal = UserPrincipal.builder()
+                                .firebaseUid(FIREBASE_UID)
+                                .role("USER")
+                                .build();
+                UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
+                                principal,
+                                null,
+                                principal.getAuthorities());
+                SecurityContext context = SecurityContextHolder.createEmptyContext();
+                context.setAuthentication(auth);
+                return request -> {
+                        SecurityContextHolder.setContext(context);
+                        return request;
+                };
+        }
 }

@@ -9,11 +9,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
@@ -35,75 +35,74 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import(CategoryService.class)
 class CategoryControllerTest {
 
-    private static final String FIREBASE_UID = "firebase-user-1";
+        private static final String FIREBASE_UID = "firebase-user-1";
 
-    @Autowired
-    private MockMvc mockMvc;
+        @Autowired
+        private MockMvc mockMvc;
 
-    @MockBean
-    private CategoryRepository categoryRepository;
+        @MockitoBean
+        private CategoryRepository categoryRepository;
 
-    @MockBean
-    private FirebaseAuthFilter firebaseAuthFilter;
+        @MockitoBean
+        private FirebaseAuthFilter firebaseAuthFilter;
 
-    @Test
-    void listCategoriesReturnsOnlyActiveCategories() throws Exception {
-        UUID activeId = UUID.randomUUID();
-        CategoryEntity activeCategory = CategoryEntity.builder()
-                .id(activeId)
-                .firebaseUid(FIREBASE_UID)
-                .name("Food")
-                .icon("utensils")
-                .color("#22c55e")
-                .isDefault(false)
-                .categoryType("EXPENSE")
-                .isDeleted(false)
-                .createdAt(OffsetDateTime.of(2026, 3, 13, 9, 0, 0, 0, ZoneOffset.UTC))
-                .updatedAt(OffsetDateTime.of(2026, 3, 13, 9, 0, 0, 0, ZoneOffset.UTC))
-                .build();
+        @Test
+        void listCategoriesReturnsOnlyActiveCategories() throws Exception {
+                UUID activeId = UUID.randomUUID();
+                CategoryEntity activeCategory = CategoryEntity.builder()
+                                .id(activeId)
+                                .firebaseUid(FIREBASE_UID)
+                                .name("Food")
+                                .icon("utensils")
+                                .color("#22c55e")
+                                .isDefault(false)
+                                .categoryType("EXPENSE")
+                                .isDeleted(false)
+                                .createdAt(OffsetDateTime.of(2026, 3, 13, 9, 0, 0, 0, ZoneOffset.UTC))
+                                .updatedAt(OffsetDateTime.of(2026, 3, 13, 9, 0, 0, 0, ZoneOffset.UTC))
+                                .build();
 
-        CategoryEntity deletedCategory = CategoryEntity.builder()
-                .id(UUID.randomUUID())
-                .firebaseUid(FIREBASE_UID)
-                .name("Bills")
-                .icon("receipt")
-                .color("#ef4444")
-                .isDefault(false)
-                .categoryType("EXPENSE")
-                .isDeleted(true)
-                .deletedAt(OffsetDateTime.of(2026, 3, 13, 10, 0, 0, 0, ZoneOffset.UTC))
-                .build();
+                CategoryEntity deletedCategory = CategoryEntity.builder()
+                                .id(UUID.randomUUID())
+                                .firebaseUid(FIREBASE_UID)
+                                .name("Bills")
+                                .icon("receipt")
+                                .color("#ef4444")
+                                .isDefault(false)
+                                .categoryType("EXPENSE")
+                                .isDeleted(true)
+                                .deletedAt(OffsetDateTime.of(2026, 3, 13, 10, 0, 0, 0, ZoneOffset.UTC))
+                                .build();
 
-        when(categoryRepository.findActiveByFirebaseUidOrderByNameAsc(FIREBASE_UID))
-                .thenReturn(List.of(activeCategory));
-        when(categoryRepository.findByFirebaseUidOrderByNameAsc(FIREBASE_UID))
-                .thenReturn(List.of(activeCategory, deletedCategory));
+                when(categoryRepository.findActiveByFirebaseUidOrderByNameAsc(FIREBASE_UID))
+                                .thenReturn(List.of(activeCategory));
+                when(categoryRepository.findByFirebaseUidOrderByNameAsc(FIREBASE_UID))
+                                .thenReturn(List.of(activeCategory, deletedCategory));
 
-        mockMvc.perform(get("/categories").with(authenticatedUser()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].id").value(activeId.toString()))
-                .andExpect(jsonPath("$[0].name").value("Food"));
+                mockMvc.perform(get("/categories").with(authenticatedUser()))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$", hasSize(1)))
+                                .andExpect(jsonPath("$[0].id").value(activeId.toString()))
+                                .andExpect(jsonPath("$[0].name").value("Food"));
 
-        verify(categoryRepository).findActiveByFirebaseUidOrderByNameAsc(FIREBASE_UID);
-        verify(categoryRepository, never()).findByFirebaseUidOrderByNameAsc(FIREBASE_UID);
-    }
+                verify(categoryRepository).findActiveByFirebaseUidOrderByNameAsc(FIREBASE_UID);
+                verify(categoryRepository, never()).findByFirebaseUidOrderByNameAsc(FIREBASE_UID);
+        }
 
-    private RequestPostProcessor authenticatedUser() {
-        UserPrincipal principal = UserPrincipal.builder()
-                .firebaseUid(FIREBASE_UID)
-                .role("USER")
-                .build();
-        UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
-                principal,
-                null,
-                principal.getAuthorities()
-        );
-        SecurityContext context = SecurityContextHolder.createEmptyContext();
-        context.setAuthentication(auth);
-        return request -> {
-            SecurityContextHolder.setContext(context);
-            return request;
-        };
-    }
+        private RequestPostProcessor authenticatedUser() {
+                UserPrincipal principal = UserPrincipal.builder()
+                                .firebaseUid(FIREBASE_UID)
+                                .role("USER")
+                                .build();
+                UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
+                                principal,
+                                null,
+                                principal.getAuthorities());
+                SecurityContext context = SecurityContextHolder.createEmptyContext();
+                context.setAuthentication(auth);
+                return request -> {
+                        SecurityContextHolder.setContext(context);
+                        return request;
+                };
+        }
 }

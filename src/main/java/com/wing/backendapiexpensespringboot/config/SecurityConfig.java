@@ -67,7 +67,7 @@ public class SecurityConfig {
         if ("*".equals(allowedOrigins)) {
             configuration.setAllowedOriginPatterns(List.of("*"));
         } else {
-            configuration.setAllowedOrigins(Arrays.stream(allowedOrigins.split(","))
+            configuration.setAllowedOriginPatterns(Arrays.stream(allowedOrigins.split(","))
                     .map(String::trim)
                     .filter(origin -> !origin.isEmpty())
                     .collect(Collectors.toList()));
