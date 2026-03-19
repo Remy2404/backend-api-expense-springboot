@@ -56,6 +56,7 @@ public class SyncService {
     private final EntityManager entityManager;
     private final PlatformTransactionManager transactionManager;
 
+    @Transactional
     public SyncPushResponseDto push(String firebaseUid, SyncPushRequestDto request) {
         SyncPushResponseDto response = SyncPushResponseDto.empty();
 
