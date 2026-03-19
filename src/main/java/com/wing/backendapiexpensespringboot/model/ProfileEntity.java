@@ -11,7 +11,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -38,12 +37,6 @@ public class ProfileEntity {
 
     @Column(name = "photo_url")
     private String photoUrl;
-
-    @Column(name = "initial_balance")
-    private BigDecimal initialBalance;
-
-    @Column(name = "current_balance")
-    private BigDecimal currentBalance;
 
     @Builder.Default
     @Column(name = "sync_status")

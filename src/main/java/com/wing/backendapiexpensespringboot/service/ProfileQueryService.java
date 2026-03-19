@@ -18,8 +18,6 @@ public class ProfileQueryService {
                 .email(profile.getEmail())
                 .displayName(profile.getDisplayName())
                 .photoUrl(profile.getPhotoUrl())
-                .initialBalance(profile.getInitialBalance())
-                .currentBalance(profile.getCurrentBalance())
                 .role(profile.getRole())
                 .riskLevel(profile.getRiskLevel())
                 .aiEnabled(profile.getAiEnabled())

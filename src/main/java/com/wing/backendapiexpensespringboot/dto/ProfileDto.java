@@ -4,7 +4,6 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 @Data
@@ -16,8 +15,6 @@ public class ProfileDto {
     private String email;
     private String displayName;
     private String photoUrl;
-    private BigDecimal initialBalance;
-    private BigDecimal currentBalance;
     private String role;
     private String riskLevel;
     private Boolean aiEnabled;
