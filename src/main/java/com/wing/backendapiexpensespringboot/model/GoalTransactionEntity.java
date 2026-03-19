@@ -2,8 +2,6 @@ package com.wing.backendapiexpensespringboot.model;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
@@ -25,7 +23,6 @@ import java.util.UUID;
 public class GoalTransactionEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @Column(name = "goal_id", nullable = false)

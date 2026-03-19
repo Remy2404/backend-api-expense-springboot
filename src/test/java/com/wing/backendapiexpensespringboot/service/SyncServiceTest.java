@@ -2,9 +2,11 @@ package com.wing.backendapiexpensespringboot.service;
 
 import com.wing.backendapiexpensespringboot.dto.SyncPushRequestDto;
 import com.wing.backendapiexpensespringboot.dto.SyncPushResponseDto;
-import com.wing.backendapiexpensespringboot.model.CategoryEntity;
 import com.wing.backendapiexpensespringboot.model.BudgetEntity;
+import com.wing.backendapiexpensespringboot.model.CategoryEntity;
 import com.wing.backendapiexpensespringboot.model.ExpenseEntity;
+import com.wing.backendapiexpensespringboot.model.GoalTransactionEntity;
+import com.wing.backendapiexpensespringboot.model.SavingsGoalEntity;
 import com.wing.backendapiexpensespringboot.repository.BudgetRepository;
 import com.wing.backendapiexpensespringboot.repository.CategoryBudgetRepository;
 import com.wing.backendapiexpensespringboot.repository.CategoryRepository;
@@ -20,6 +22,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.SimpleTransactionStatus;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -31,6 +35,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -63,6 +69,9 @@ class SyncServiceTest {
 
     @Mock
     private EntityManager entityManager;
+
+    @Mock
+    private PlatformTransactionManager transactionManager;
 
     @InjectMocks
     private SyncService syncService;
@@ -207,5 +216,77 @@ class SyncServiceTest {
         assertEquals(0, response.getSyncedItems().getBudgets());
         assertEquals(1, response.getFailedItems().size());
         assertEquals("Stale budget update", response.getFailedItems().get(0).getError());
+    }
+
+    @Test
+    void pushGoalOnlyPersistsNewTransactionIdsAndLeavesVersionUnset() {
+        String firebaseUid = "firebase-user";
+        UUID goalId = UUID.randomUUID();
+        UUID existingTransactionId = UUID.randomUUID();
+        UUID newTransactionId = UUID.randomUUID();
+
+        SavingsGoalEntity existingGoal = new SavingsGoalEntity();
+        existingGoal.setId(goalId);
+        existingGoal.setFirebaseUid(firebaseUid);
+        existingGoal.setUpdatedAt(OffsetDateTime.parse("2026-03-15T09:00:00Z"));
+
+        GoalTransactionEntity existingTransaction = new GoalTransactionEntity();
+        existingTransaction.setId(existingTransactionId);
+        existingTransaction.setGoalId(goalId);
+
+        when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
+        doNothing().when(transactionManager).commit(any());
+        when(savingsGoalRepository.findById(goalId)).thenReturn(Optional.of(existingGoal));
+        when(savingsGoalRepository.save(any(SavingsGoalEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(goalTransactionRepository.findByGoalIdOrderByDateDesc(goalId)).thenReturn(List.of(existingTransaction));
+
+        SyncPushRequestDto.GoalTransactionItem sentExistingTransaction = new SyncPushRequestDto.GoalTransactionItem();
+        sentExistingTransaction.setId(existingTransactionId.toString());
+        sentExistingTransaction.setAmount(15.0);
+        sentExistingTransaction.setType("deposit");
+        sentExistingTransaction.setDate("2026-03-15T09:30:00Z");
+
+        SyncPushRequestDto.GoalTransactionItem duplicatedNewTransaction = new SyncPushRequestDto.GoalTransactionItem();
+        duplicatedNewTransaction.setId(newTransactionId.toString());
+        duplicatedNewTransaction.setAmount(30.0);
+        duplicatedNewTransaction.setType("deposit");
+        duplicatedNewTransaction.setNote("first");
+        duplicatedNewTransaction.setDate("2026-03-15T10:00:00Z");
+
+        SyncPushRequestDto.GoalTransactionItem latestNewTransaction = new SyncPushRequestDto.GoalTransactionItem();
+        latestNewTransaction.setId(newTransactionId.toString());
+        latestNewTransaction.setAmount(30.0);
+        latestNewTransaction.setType("deposit");
+        latestNewTransaction.setNote("latest");
+        latestNewTransaction.setDate("2026-03-15T10:05:00Z");
+
+        SyncPushRequestDto.GoalItem goalItem = new SyncPushRequestDto.GoalItem();
+        goalItem.setId(goalId.toString());
+        goalItem.setName("Emergency fund");
+        goalItem.setTargetAmount(500.0);
+        goalItem.setCurrentAmount(245.0);
+        goalItem.setUpdatedAt("2026-03-15T10:10:00Z");
+        goalItem.setTransactions(List.of(
+                sentExistingTransaction,
+                duplicatedNewTransaction,
+                latestNewTransaction));
+
+        SyncPushRequestDto request = new SyncPushRequestDto();
+        request.setGoals(List.of(goalItem));
+
+        SyncPushResponseDto response = syncService.push(firebaseUid, request);
+
+        ArgumentCaptor<GoalTransactionEntity> transactionCaptor = ArgumentCaptor.forClass(GoalTransactionEntity.class);
+        verify(entityManager).persist(transactionCaptor.capture());
+        verify(goalTransactionRepository, never()).save(any(GoalTransactionEntity.class));
+        verify(goalTransactionRepository, never()).existsById(any());
+        verify(transactionManager).commit(any());
+
+        GoalTransactionEntity persistedTransaction = transactionCaptor.getValue();
+        assertEquals(newTransactionId, persistedTransaction.getId());
+        assertEquals("latest", persistedTransaction.getNote());
+        assertNull(persistedTransaction.getVersion());
+        assertEquals(1, response.getSyncedItems().getGoals());
+        assertEquals(0, response.getFailedItems().size());
     }
 }

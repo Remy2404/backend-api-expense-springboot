@@ -22,7 +22,10 @@ import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -30,8 +33,10 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -49,8 +54,8 @@ public class SyncService {
     private final RecurringExpenseRepository recurringExpenseRepository;
     private final ImageKitMediaService imageKitMediaService;
     private final EntityManager entityManager;
+    private final PlatformTransactionManager transactionManager;
 
-    @Transactional
     public SyncPushResponseDto push(String firebaseUid, SyncPushRequestDto request) {
         SyncPushResponseDto response = SyncPushResponseDto.empty();
 
@@ -398,10 +403,12 @@ public class SyncService {
             SyncPushResponseDto response) {
         int maxRetries = 3;
         int attempt = 0;
+        TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
+        transactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
 
         while (attempt < maxRetries) {
             try {
-                syncSingleGoal(firebaseUid, item, response);
+                transactionTemplate.executeWithoutResult(status -> syncSingleGoal(firebaseUid, item, response));
                 return;
             } catch (org.springframework.orm.ObjectOptimisticLockingFailureException e) {
                 attempt++;
@@ -671,53 +678,44 @@ public class SyncService {
             items = List.of();
         }
 
-        List<GoalTransactionEntity> existingTransactions = goalTransactionRepository.findByGoalIdOrderByDateDesc(goalId);
-        List<UUID> incomingIds = items.stream()
-                .map(item -> parseUuid(item.getId()))
-                .filter(id -> id != null)
-                .toList();
-
-        for (GoalTransactionEntity existing : existingTransactions) {
-            if (!incomingIds.contains(existing.getId())) {
-                try {
-                    goalTransactionRepository.delete(existing);
-                } catch (org.springframework.orm.ObjectOptimisticLockingFailureException e) {
-                    log.warn("Transaction {} already deleted by another process", existing.getId());
-                }
+        Map<UUID, SyncPushRequestDto.GoalTransactionItem> incomingItemsById = new LinkedHashMap<>();
+        for (SyncPushRequestDto.GoalTransactionItem item : items) {
+            UUID id = parseUuid(item.getId());
+            if (id != null) {
+                incomingItemsById.put(id, item);
             }
         }
 
-        for (SyncPushRequestDto.GoalTransactionItem item : items) {
-            UUID id = parseUuid(item.getId());
-            if (id == null) {
+        List<GoalTransactionEntity> existingTransactions = goalTransactionRepository.findByGoalIdOrderByDateDesc(goalId);
+        Map<UUID, GoalTransactionEntity> existingTransactionsById = new LinkedHashMap<>();
+        for (GoalTransactionEntity existingTransaction : existingTransactions) {
+            existingTransactionsById.put(existingTransaction.getId(), existingTransaction);
+        }
+
+        for (GoalTransactionEntity existing : existingTransactions) {
+            if (!incomingItemsById.containsKey(existing.getId())) {
+                goalTransactionRepository.delete(existing);
+            }
+        }
+
+        for (Map.Entry<UUID, SyncPushRequestDto.GoalTransactionItem> entry : incomingItemsById.entrySet()) {
+            UUID id = entry.getKey();
+            if (existingTransactionsById.containsKey(id)) {
                 continue;
             }
 
-            Optional<GoalTransactionEntity> existingOpt = goalTransactionRepository.findById(id);
-            GoalTransactionEntity entity;
+            SyncPushRequestDto.GoalTransactionItem item = entry.getValue();
 
-            if (existingOpt.isPresent()) {
-                entity = existingOpt.get();
-                entity.setAmount(toBigDecimal(item.getAmount()));
-                entity.setType(normalizeText(item.getType(), "deposit"));
-                entity.setNote(item.getNote());
-                entity.setDate(resolveDateTimeOrNow(item.getDate()));
-            } else {
-                entity = GoalTransactionEntity.builder()
-                        .id(id)
-                        .goalId(goalId)
-                        .amount(toBigDecimal(item.getAmount()))
-                        .type(normalizeText(item.getType(), "deposit"))
-                        .note(item.getNote())
-                        .date(resolveDateTimeOrNow(item.getDate()))
-                        .build();
-            }
+            GoalTransactionEntity entity = GoalTransactionEntity.builder()
+                    .id(id)
+                    .goalId(goalId)
+                    .amount(toBigDecimal(item.getAmount()))
+                    .type(normalizeText(item.getType(), "deposit"))
+                    .note(item.getNote())
+                    .date(resolveDateTimeOrNow(item.getDate()))
+                    .build();
 
-            try {
-                goalTransactionRepository.save(entity);
-            } catch (org.springframework.orm.ObjectOptimisticLockingFailureException e) {
-                log.warn("Transaction {} was modified concurrently, skipping", id);
-            }
+            entityManager.persist(entity);
         }
     }
 
