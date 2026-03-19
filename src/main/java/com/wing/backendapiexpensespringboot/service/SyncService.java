@@ -383,55 +383,93 @@ public class SyncService {
             List<SyncPushRequestDto.GoalItem> items,
             SyncPushResponseDto response) {
         for (SyncPushRequestDto.GoalItem item : items) {
-            UUID id = parseUuid(item.getId());
-            if (id == null) {
-                addFailed(response, item.getId(), "goal", "Invalid goal id");
-                continue;
+            try {
+                syncGoalWithRetry(firebaseUid, item, response);
+            } catch (Exception e) {
+                log.error("Failed to sync goal {} after retries: {}", item.getId(), e.getMessage(), e);
+                addFailed(response, item.getId(), "goal", "Sync failed: " + e.getMessage());
             }
-
-            Optional<SavingsGoalEntity> existingOpt = savingsGoalRepository.findById(id);
-            if (existingOpt.isPresent() && !firebaseUid.equals(existingOpt.get().getFirebaseUid())) {
-                addFailed(response, item.getId(), "goal", "Forbidden goal ownership");
-                continue;
-            }
-
-            boolean seeded = false;
-            if (existingOpt.isEmpty()) {
-                seedGoalRow(id, firebaseUid);
-                existingOpt = savingsGoalRepository.findById(id);
-                seeded = true;
-            }
-            SavingsGoalEntity entity = existingOpt.orElseGet(SavingsGoalEntity::new);
-            OffsetDateTime incomingUpdatedAt = parseDateTime(item.getUpdatedAt());
-            if (!seeded && isStale(entity.getUpdatedAt(), incomingUpdatedAt)) {
-                addFailed(response, item.getId(), "goal", "Stale goal update");
-                continue;
-            }
-
-            entity.setId(id);
-            entity.setFirebaseUid(firebaseUid);
-            entity.setName(normalizeText(item.getName(), "Goal"));
-            entity.setTargetAmount(toBigDecimal(item.getTargetAmount()));
-            entity.setCurrentAmount(toBigDecimal(item.getCurrentAmount()));
-            entity.setDeadline(parseDateTime(item.getDeadline()));
-            entity.setColor(item.getColor());
-            entity.setIcon(item.getIcon());
-            entity.setIsArchived(Boolean.TRUE.equals(item.getIsArchived()));
-            entity.setIsDeleted(Boolean.TRUE.equals(item.getIsDeleted()));
-            entity.setDeletedAt(parseDateTime(item.getDeletedAt()));
-            entity.setRetryCount(item.getRetryCount());
-            entity.setLastError(item.getLastError());
-            entity.setCreatedAt(resolveCreatedAt(entity.getCreatedAt(), item.getCreatedAt()));
-            entity.setUpdatedAt(resolveUpdatedAt(item.getUpdatedAt()));
-            entity.setSyncedAt(resolveSyncedAt(item.getSyncedAt()));
-            entity.setSyncStatus(resolveSyncStatus(item.getSyncedAt()));
-
-            savingsGoalRepository.save(entity);
-            goalTransactionRepository.deleteByGoalId(entity.getId());
-            upsertGoalTransactions(entity.getId(), item.getTransactions());
-
-            response.getSyncedItems().setGoals(response.getSyncedItems().getGoals() + 1);
         }
+    }
+
+    private void syncGoalWithRetry(
+            String firebaseUid,
+            SyncPushRequestDto.GoalItem item,
+            SyncPushResponseDto response) {
+        int maxRetries = 3;
+        int attempt = 0;
+
+        while (attempt < maxRetries) {
+            try {
+                syncSingleGoal(firebaseUid, item, response);
+                return;
+            } catch (org.springframework.orm.ObjectOptimisticLockingFailureException e) {
+                attempt++;
+                if (attempt >= maxRetries) {
+                    throw e;
+                }
+                log.warn("Optimistic lock conflict for goal {}, retry {}/{}", item.getId(), attempt, maxRetries);
+                try {
+                    Thread.sleep(50 * attempt);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Interrupted during retry", ie);
+                }
+            }
+        }
+    }
+
+    private void syncSingleGoal(
+            String firebaseUid,
+            SyncPushRequestDto.GoalItem item,
+            SyncPushResponseDto response) {
+        UUID id = parseUuid(item.getId());
+        if (id == null) {
+            addFailed(response, item.getId(), "goal", "Invalid goal id");
+            return;
+        }
+
+        Optional<SavingsGoalEntity> existingOpt = savingsGoalRepository.findById(id);
+        if (existingOpt.isPresent() && !firebaseUid.equals(existingOpt.get().getFirebaseUid())) {
+            addFailed(response, item.getId(), "goal", "Forbidden goal ownership");
+            return;
+        }
+
+        boolean seeded = false;
+        if (existingOpt.isEmpty()) {
+            seedGoalRow(id, firebaseUid);
+            existingOpt = savingsGoalRepository.findById(id);
+            seeded = true;
+        }
+        SavingsGoalEntity entity = existingOpt.orElseGet(SavingsGoalEntity::new);
+        OffsetDateTime incomingUpdatedAt = parseDateTime(item.getUpdatedAt());
+        if (!seeded && isStale(entity.getUpdatedAt(), incomingUpdatedAt)) {
+            addFailed(response, item.getId(), "goal", "Stale goal update");
+            return;
+        }
+
+        entity.setId(id);
+        entity.setFirebaseUid(firebaseUid);
+        entity.setName(normalizeText(item.getName(), "Goal"));
+        entity.setTargetAmount(toBigDecimal(item.getTargetAmount()));
+        entity.setCurrentAmount(toBigDecimal(item.getCurrentAmount()));
+        entity.setDeadline(parseDateTime(item.getDeadline()));
+        entity.setColor(item.getColor());
+        entity.setIcon(item.getIcon());
+        entity.setIsArchived(Boolean.TRUE.equals(item.getIsArchived()));
+        entity.setIsDeleted(Boolean.TRUE.equals(item.getIsDeleted()));
+        entity.setDeletedAt(parseDateTime(item.getDeletedAt()));
+        entity.setRetryCount(item.getRetryCount());
+        entity.setLastError(item.getLastError());
+        entity.setCreatedAt(resolveCreatedAt(entity.getCreatedAt(), item.getCreatedAt()));
+        entity.setUpdatedAt(resolveUpdatedAt(item.getUpdatedAt()));
+        entity.setSyncedAt(resolveSyncedAt(item.getSyncedAt()));
+        entity.setSyncStatus(resolveSyncStatus(item.getSyncedAt()));
+
+        savingsGoalRepository.save(entity);
+        mergeGoalTransactions(entity.getId(), item.getTransactions());
+
+        response.getSyncedItems().setGoals(response.getSyncedItems().getGoals() + 1);
     }
 
     private void syncRecurring(
@@ -625,6 +663,61 @@ public class SyncService {
                     .date(resolveDateTimeOrNow(item.getDate()))
                     .build();
             goalTransactionRepository.save(entity);
+        }
+    }
+
+    private void mergeGoalTransactions(UUID goalId, List<SyncPushRequestDto.GoalTransactionItem> items) {
+        if (items == null) {
+            items = List.of();
+        }
+
+        List<GoalTransactionEntity> existingTransactions = goalTransactionRepository.findByGoalIdOrderByDateDesc(goalId);
+        List<UUID> incomingIds = items.stream()
+                .map(item -> parseUuid(item.getId()))
+                .filter(id -> id != null)
+                .toList();
+
+        for (GoalTransactionEntity existing : existingTransactions) {
+            if (!incomingIds.contains(existing.getId())) {
+                try {
+                    goalTransactionRepository.delete(existing);
+                } catch (org.springframework.orm.ObjectOptimisticLockingFailureException e) {
+                    log.warn("Transaction {} already deleted by another process", existing.getId());
+                }
+            }
+        }
+
+        for (SyncPushRequestDto.GoalTransactionItem item : items) {
+            UUID id = parseUuid(item.getId());
+            if (id == null) {
+                continue;
+            }
+
+            Optional<GoalTransactionEntity> existingOpt = goalTransactionRepository.findById(id);
+            GoalTransactionEntity entity;
+
+            if (existingOpt.isPresent()) {
+                entity = existingOpt.get();
+                entity.setAmount(toBigDecimal(item.getAmount()));
+                entity.setType(normalizeText(item.getType(), "deposit"));
+                entity.setNote(item.getNote());
+                entity.setDate(resolveDateTimeOrNow(item.getDate()));
+            } else {
+                entity = GoalTransactionEntity.builder()
+                        .id(id)
+                        .goalId(goalId)
+                        .amount(toBigDecimal(item.getAmount()))
+                        .type(normalizeText(item.getType(), "deposit"))
+                        .note(item.getNote())
+                        .date(resolveDateTimeOrNow(item.getDate()))
+                        .build();
+            }
+
+            try {
+                goalTransactionRepository.save(entity);
+            } catch (org.springframework.orm.ObjectOptimisticLockingFailureException e) {
+                log.warn("Transaction {} was modified concurrently, skipping", id);
+            }
         }
     }
 

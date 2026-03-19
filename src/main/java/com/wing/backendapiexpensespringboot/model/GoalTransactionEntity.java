@@ -6,6 +6,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -41,4 +42,8 @@ public class GoalTransactionEntity {
 
     @Column(name = "date")
     private OffsetDateTime date;
+
+    @Version
+    @Column(name = "version")
+    private Long version;
 }
