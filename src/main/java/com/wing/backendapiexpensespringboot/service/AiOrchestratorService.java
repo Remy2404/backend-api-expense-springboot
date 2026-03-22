@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.util.*;
+import java.util.function.Consumer;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -334,6 +335,16 @@ public class AiOrchestratorService {
 
     public ChatResponse chat(String firebaseUid, ChatRequest request) {
         log.info("Processing chat for user: {}", firebaseUid);
+        return runChat(firebaseUid, request, null);
+    }
+
+    public ChatResponse streamChat(String firebaseUid, ChatRequest request, Consumer<String> deltaConsumer) {
+        log.info("Streaming chat for user: {}", firebaseUid);
+        return runChat(firebaseUid, request, deltaConsumer);
+    }
+
+    private ChatResponse runChat(String firebaseUid, ChatRequest request, Consumer<String> deltaConsumer) {
+        log.info("Processing chat for user: {}", firebaseUid);
 
         safetyValidatorService.enforceNoAutoDelete(request.getQuestion());
 
@@ -375,9 +386,13 @@ public class AiOrchestratorService {
 
             String answer;
             if (!history.isEmpty()) {
-                answer = openRouterService.chatWithHistory(prompt, history, request.getQuestion());
+                answer = deltaConsumer == null
+                        ? openRouterService.chatWithHistory(prompt, history, request.getQuestion())
+                        : openRouterService.streamChatWithHistory(prompt, history, request.getQuestion(), deltaConsumer);
             } else {
-                answer = openRouterService.chat(prompt, request.getQuestion());
+                answer = deltaConsumer == null
+                        ? openRouterService.chat(prompt, request.getQuestion())
+                        : openRouterService.streamChat(prompt, request.getQuestion(), deltaConsumer);
             }
 
             return ChatResponse.builder()

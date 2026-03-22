@@ -11,18 +11,14 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class RealtimeRelayService {
-
-    private static final int CHAT_CHUNK_SIZE = 48;
 
     private final RestTemplate restTemplate;
     private final RealtimeConfig realtimeConfig;
@@ -62,30 +58,36 @@ public class RealtimeRelayService {
                 "message", message));
     }
 
-    public void streamChatResponse(String firebaseUid, String requestId, ChatResponse response) {
+    public void publishChatStart(String firebaseUid, String requestId) {
         if (!isEnabled() || requestId == null || requestId.isBlank()) {
             return;
         }
 
-        CompletableFuture.runAsync(() -> {
-            publishChatEvent("ai.chat.start", firebaseUid, requestId, Map.of("requestId", requestId));
+        publishChatEvent("ai.chat.start", firebaseUid, requestId, Map.of("requestId", requestId));
+    }
 
-            String answer = response.getAnswer() == null ? "" : response.getAnswer();
-            if (!answer.isBlank()) {
-                for (String chunk : chunk(answer)) {
-                    publishChatEvent("ai.chat.delta", firebaseUid, requestId, Map.of(
-                            "requestId", requestId,
-                            "delta", chunk));
-                }
-            }
+    public void publishChatDelta(String firebaseUid, String requestId, String delta) {
+        if (!isEnabled()
+                || requestId == null
+                || requestId.isBlank()
+                || delta == null
+                || delta.isBlank()) {
+            return;
+        }
 
-            publishChatEvent("ai.chat.complete", firebaseUid, requestId, Map.of(
-                    "requestId", requestId,
-                    "response", objectToMap(response)));
-        }).exceptionally(error -> {
-            log.warn("Failed to stream chat response to realtime relay: {}", error.getMessage());
-            return null;
-        });
+        publishChatEvent("ai.chat.delta", firebaseUid, requestId, Map.of(
+                "requestId", requestId,
+                "delta", delta));
+    }
+
+    public void publishChatComplete(String firebaseUid, String requestId, ChatResponse response) {
+        if (!isEnabled() || requestId == null || requestId.isBlank()) {
+            return;
+        }
+
+        publishChatEvent("ai.chat.complete", firebaseUid, requestId, Map.of(
+                "requestId", requestId,
+                "response", objectToMap(response)));
     }
 
     private void publishChatEvent(String type, String firebaseUid, String requestId, Map<String, Object> body) {
@@ -95,21 +97,6 @@ public class RealtimeRelayService {
         payload.put("requestId", requestId);
         payload.putAll(body);
         post(payload);
-    }
-
-    private List<String> chunk(String content) {
-        if (content.length() <= CHAT_CHUNK_SIZE) {
-            return List.of(content);
-        }
-
-        ArrayList<String> chunks = new ArrayList<>();
-        int index = 0;
-        while (index < content.length()) {
-            int end = Math.min(content.length(), index + CHAT_CHUNK_SIZE);
-            chunks.add(content.substring(index, end));
-            index = end;
-        }
-        return chunks;
     }
 
     private Map<String, Object> objectToMap(Object value) {

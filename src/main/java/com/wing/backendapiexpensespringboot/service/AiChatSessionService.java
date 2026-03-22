@@ -39,23 +39,27 @@ public class AiChatSessionService {
     @Transactional
     public ChatResponse chat(String firebaseUid, ChatRequest request) {
         ChatRequest effectiveRequest = buildEffectiveRequest(firebaseUid, request);
-
-        String userContent = normalizeUserContent(request);
-        if (!userContent.isBlank()) {
-            saveMessage(firebaseUid, "user", userContent, request.getRequestId());
-            realtimeRelayService.publishUserMessage(firebaseUid, request.getRequestId(), userContent);
-        }
+        persistUserMessageAndBroadcast(firebaseUid, request);
 
         ChatResponse response = aiOrchestratorService.chat(firebaseUid, effectiveRequest);
-        if (response.getAnswer() != null && !response.getAnswer().isBlank()) {
-            saveMessage(firebaseUid, "assistant", response.getAnswer(), request.getRequestId());
-        }
+        persistAssistantMessage(firebaseUid, request, response);
         return response;
     }
 
     public ChatResponse streamChat(String firebaseUid, ChatRequest request) {
-        ChatResponse response = chat(firebaseUid, request);
-        realtimeRelayService.streamChatResponse(firebaseUid, request.getRequestId(), response);
+        ChatRequest effectiveRequest = buildEffectiveRequest(firebaseUid, request);
+        persistUserMessageAndBroadcast(firebaseUid, request);
+
+        if (request.getRequestId() != null && !request.getRequestId().isBlank()) {
+            realtimeRelayService.publishChatStart(firebaseUid, request.getRequestId());
+        }
+
+        ChatResponse response = aiOrchestratorService.streamChat(
+                firebaseUid,
+                effectiveRequest,
+                delta -> realtimeRelayService.publishChatDelta(firebaseUid, request.getRequestId(), delta));
+        persistAssistantMessage(firebaseUid, request, response);
+        realtimeRelayService.publishChatComplete(firebaseUid, request.getRequestId(), response);
         return response;
     }
 
@@ -95,6 +99,20 @@ public class AiChatSessionService {
             return question;
         }
         return Boolean.TRUE.equals(request.getImagePresent()) ? "Sent an attachment" : "";
+    }
+
+    private void persistUserMessageAndBroadcast(String firebaseUid, ChatRequest request) {
+        String userContent = normalizeUserContent(request);
+        if (!userContent.isBlank()) {
+            saveMessage(firebaseUid, "user", userContent, request.getRequestId());
+            realtimeRelayService.publishUserMessage(firebaseUid, request.getRequestId(), userContent);
+        }
+    }
+
+    private void persistAssistantMessage(String firebaseUid, ChatRequest request, ChatResponse response) {
+        if (response.getAnswer() != null && !response.getAnswer().isBlank()) {
+            saveMessage(firebaseUid, "assistant", response.getAnswer(), request.getRequestId());
+        }
     }
 
     private void saveMessage(String firebaseUid, String role, String content, String requestId) {
