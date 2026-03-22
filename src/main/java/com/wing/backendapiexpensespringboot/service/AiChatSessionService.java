@@ -43,6 +43,7 @@ public class AiChatSessionService {
         String userContent = normalizeUserContent(request);
         if (!userContent.isBlank()) {
             saveMessage(firebaseUid, "user", userContent, request.getRequestId());
+            realtimeRelayService.publishUserMessage(firebaseUid, request.getRequestId(), userContent);
         }
 
         ChatResponse response = aiOrchestratorService.chat(firebaseUid, effectiveRequest);

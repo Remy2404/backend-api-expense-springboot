@@ -48,6 +48,20 @@ public class RealtimeRelayService {
         post(payload);
     }
 
+    public void publishUserMessage(String firebaseUid, String requestId, String message) {
+        if (!isEnabled()
+                || requestId == null
+                || requestId.isBlank()
+                || message == null
+                || message.isBlank()) {
+            return;
+        }
+
+        publishChatEvent("ai.chat.user", firebaseUid, requestId, Map.of(
+                "requestId", requestId,
+                "message", message));
+    }
+
     public void streamChatResponse(String firebaseUid, String requestId, ChatResponse response) {
         if (!isEnabled() || requestId == null || requestId.isBlank()) {
             return;
