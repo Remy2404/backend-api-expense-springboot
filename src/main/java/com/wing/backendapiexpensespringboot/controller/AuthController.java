@@ -1,5 +1,6 @@
 package com.wing.backendapiexpensespringboot.controller;
 
+import com.wing.backendapiexpensespringboot.config.AppConfig;
 import com.wing.backendapiexpensespringboot.dto.AuthSessionRequest;
 import com.wing.backendapiexpensespringboot.dto.AuthSessionResponse;
 import com.wing.backendapiexpensespringboot.exception.AppException;
@@ -27,17 +28,20 @@ import org.springframework.web.bind.annotation.RestController;
 @ConditionalOnProperty(prefix = "firebase", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class AuthController {
 
+    private final AppConfig appConfig;
     private final AuthCookieService authCookieService;
     private final FirebaseAuthenticationService firebaseAuthenticationService;
 
     @GetMapping("/session")
     public ResponseEntity<AuthSessionResponse> getSession(HttpServletRequest request) {
-        String idToken = authCookieService.readAccessToken(request).orElse(null);
-        if (idToken == null) {
+        String sessionCookie = authCookieService.readAccessToken(request).orElse(null);
+        if (sessionCookie == null) {
             return ResponseEntity.ok(AuthSessionResponse.builder().build());
         }
 
-        AuthenticatedFirebaseUser authenticatedUser = firebaseAuthenticationService.authenticate(idToken, false);
+        AuthenticatedFirebaseUser authenticatedUser = firebaseAuthenticationService.authenticateSessionCookie(
+                sessionCookie,
+                false);
         return ResponseEntity.ok(toSessionResponse(
                 authenticatedUser,
                 firebaseAuthenticationService.issueCustomToken(authenticatedUser.principal())));
@@ -49,18 +53,24 @@ public class AuthController {
             HttpServletResponse response) {
         AuthenticatedFirebaseUser authenticatedUser = firebaseAuthenticationService.authenticate(request.idToken(),
                 true);
-
-        authCookieService.writeAccessToken(response, request.idToken().trim(), authenticatedUser.maxAgeSeconds());
-        return ResponseEntity.ok(toSessionResponse(authenticatedUser, null));
+        String sessionCookie = firebaseAuthenticationService.createSessionCookie(request.idToken());
+        AuthenticatedFirebaseUser sessionUser = firebaseAuthenticationService.authenticateSessionCookie(
+                sessionCookie,
+                false);
+        authCookieService.writeAccessToken(
+                response,
+                sessionCookie,
+                appConfig.getAuth().getSessionMaxAgeSeconds());
+        return ResponseEntity.ok(toSessionResponse(sessionUser, null));
     }
 
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(HttpServletRequest request, HttpServletResponse response) {
         try {
-            authCookieService.readAccessToken(request).ifPresent(idToken -> {
+            authCookieService.readAccessToken(request).ifPresent(sessionCookie -> {
                 try {
-                    AuthenticatedFirebaseUser authenticatedUser = firebaseAuthenticationService.authenticate(idToken,
-                            false);
+                    AuthenticatedFirebaseUser authenticatedUser = firebaseAuthenticationService
+                            .authenticateSessionCookie(sessionCookie, false);
                     firebaseAuthenticationService.revokeRefreshTokens(authenticatedUser.principal().getFirebaseUid());
                 } catch (AppException exception) {
                     if (exception.getStatusCode() != HttpStatus.UNAUTHORIZED) {

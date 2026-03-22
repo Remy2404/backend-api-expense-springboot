@@ -25,10 +25,11 @@ public class AppConfig {
 
     @Data
     public static class Auth {
-        private String accessCookieName = "access_token";
-        private String cookiePath = "/";
-        private boolean cookieSecure = false;
-        private String sameSite = "Lax";
+        private String accessCookieName;
+        private String cookiePath;
+        private Boolean cookieSecure;
+        private String sameSite;
+        private long sessionMaxAgeSeconds = 432000L;
         private long fallbackMaxAgeSeconds = 3600L;
     }
 }

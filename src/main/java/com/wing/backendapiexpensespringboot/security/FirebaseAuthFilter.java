@@ -40,14 +40,15 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
             return;
         }
 
-        String idToken = extractToken(request);
-        if (!StringUtils.hasText(idToken)) {
+        String bearerToken = extractBearerToken(request);
+        String sessionCookie = authCookieService.readAccessToken(request).orElse(null);
+        if (!StringUtils.hasText(bearerToken) && !StringUtils.hasText(sessionCookie)) {
             filterChain.doFilter(request, response);
             return;
         }
 
         try {
-            UserPrincipal user = firebaseAuthenticationService.authenticate(idToken, true).principal();
+            UserPrincipal user = authenticateRequest(bearerToken, sessionCookie).principal();
             UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(user, null,
                     user.getAuthorities());
             authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
@@ -92,11 +93,21 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
 
     }
 
-    private String extractToken(HttpServletRequest request) {
+    private FirebaseAuthenticationService.AuthenticatedFirebaseUser authenticateRequest(
+            String bearerToken,
+            String sessionCookie) {
+        if (StringUtils.hasText(bearerToken)) {
+            return firebaseAuthenticationService.authenticate(bearerToken, true);
+        }
+
+        return firebaseAuthenticationService.authenticateSessionCookie(sessionCookie, true);
+    }
+
+    private String extractBearerToken(HttpServletRequest request) {
         String bearerToken = request.getHeader("Authorization");
         if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
             return bearerToken.substring(7);
         }
-        return authCookieService.readAccessToken(request).orElse(null);
+        return null;
     }
 }

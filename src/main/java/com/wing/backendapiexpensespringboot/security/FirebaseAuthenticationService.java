@@ -3,6 +3,7 @@ package com.wing.backendapiexpensespringboot.security;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseAuthException;
 import com.google.firebase.auth.FirebaseToken;
+import com.google.firebase.auth.SessionCookieOptions;
 import com.wing.backendapiexpensespringboot.config.AppConfig;
 import com.wing.backendapiexpensespringboot.exception.AppException;
 import com.wing.backendapiexpensespringboot.service.ProfileProvisioningService;
@@ -23,6 +24,9 @@ import java.util.Map;
 @ConditionalOnProperty(prefix = "firebase", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class FirebaseAuthenticationService {
 
+    private static final long MIN_SESSION_TTL_MILLIS = 5 * 60 * 1000L;
+    private static final long MAX_SESSION_TTL_MILLIS = 14L * 24 * 60 * 60 * 1000L;
+
     private final FirebaseAuth firebaseAuth;
     private final AppConfig appConfig;
     private final ProfileProvisioningService profileProvisioningService;
@@ -38,6 +42,36 @@ public class FirebaseAuthenticationService {
             return toAuthenticatedUser(decodedToken, synchronizeProfile);
         } catch (FirebaseAuthException exception) {
             throw AppException.unauthorized("Invalid or expired Firebase token.");
+        }
+    }
+
+    public String createSessionCookie(String idToken) {
+        if (!StringUtils.hasText(idToken)) {
+            throw AppException.unauthorized("Missing authentication token.");
+        }
+
+        long expiresInMillis = resolveSessionCookieMaxAgeMillis();
+        SessionCookieOptions options = SessionCookieOptions.builder()
+                .setExpiresIn(expiresInMillis)
+                .build();
+
+        try {
+            return firebaseAuth.createSessionCookie(idToken.trim(), options);
+        } catch (FirebaseAuthException exception) {
+            throw AppException.unauthorized("Failed to create Firebase session cookie.");
+        }
+    }
+
+    public AuthenticatedFirebaseUser authenticateSessionCookie(String sessionCookie, boolean synchronizeProfile) {
+        if (!StringUtils.hasText(sessionCookie)) {
+            throw AppException.unauthorized("Missing session cookie.");
+        }
+
+        try {
+            FirebaseToken decodedToken = firebaseAuth.verifySessionCookie(sessionCookie.trim(), true);
+            return toAuthenticatedUser(decodedToken, synchronizeProfile);
+        } catch (FirebaseAuthException exception) {
+            throw AppException.unauthorized("Invalid or expired Firebase session cookie.");
         }
     }
 
@@ -135,6 +169,15 @@ public class FirebaseAuthenticationService {
         }
 
         return Instant.now().getEpochSecond() + appConfig.getAuth().getFallbackMaxAgeSeconds();
+    }
+
+    private long resolveSessionCookieMaxAgeMillis() {
+        long configuredSeconds = appConfig.getAuth().getSessionMaxAgeSeconds();
+        long configuredMillis = configuredSeconds * 1000L;
+        if (configuredMillis < MIN_SESSION_TTL_MILLIS || configuredMillis > MAX_SESSION_TTL_MILLIS) {
+            throw AppException.internalError("app.auth.session-max-age-seconds must be between 300 and 1209600.");
+        }
+        return configuredMillis;
     }
 
     private String claimAsText(Map<String, Object> claims, String key) {
