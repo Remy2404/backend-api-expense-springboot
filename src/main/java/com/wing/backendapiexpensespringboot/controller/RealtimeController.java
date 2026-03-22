@@ -40,11 +40,11 @@ public class RealtimeController {
     }
 
     private String resolveSocketUrl() {
-        String publicSocketUrl = realtimeConfig.getPublicSocketUrl();
+        String publicSocketUrl = realtimeConfig.normalizedPublicSocketUrl();
         if (publicSocketUrl != null && !publicSocketUrl.isBlank()) {
             return publicSocketUrl;
         }
-        String relayUrl = realtimeConfig.getRelayUrl();
+        String relayUrl = realtimeConfig.normalizedRelayUrl();
         if (relayUrl != null && !relayUrl.isBlank()) {
             return relayUrl;
         }

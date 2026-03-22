@@ -25,8 +25,8 @@ public class RealtimeRelayService {
     private final ObjectMapper objectMapper;
 
     public boolean isEnabled() {
-        return realtimeConfig.getRelayUrl() != null
-                && !realtimeConfig.getRelayUrl().isBlank()
+        return realtimeConfig.normalizedRelayUrl() != null
+                && !realtimeConfig.normalizedRelayUrl().isBlank()
                 && realtimeConfig.getRelaySecret() != null
                 && !realtimeConfig.getRelaySecret().isBlank();
     }
@@ -108,7 +108,7 @@ public class RealtimeRelayService {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             headers.setBearerAuth(realtimeConfig.getRelaySecret());
-            restTemplate.postForEntity(realtimeConfig.getRelayUrl() + "/internal/events",
+            restTemplate.postForEntity(realtimeConfig.normalizedRelayUrl() + "/internal/events",
                     new HttpEntity<>(payload, headers), Void.class);
         } catch (Exception exception) {
             log.warn("Failed to publish realtime relay event: {}", exception.getMessage());
