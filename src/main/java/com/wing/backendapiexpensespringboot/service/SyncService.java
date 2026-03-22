@@ -24,7 +24,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
@@ -56,22 +55,20 @@ public class SyncService {
     private final EntityManager entityManager;
     private final PlatformTransactionManager transactionManager;
 
-    @Transactional
     public SyncPushResponseDto push(String firebaseUid, SyncPushRequestDto request) {
         SyncPushResponseDto response = SyncPushResponseDto.empty();
 
-        syncCategories(firebaseUid, safeList(request.getCategories()), response);
-        syncExpenses(firebaseUid, safeList(request.getExpenses()), response);
-        syncBudgets(firebaseUid, safeList(request.getBudgets()), response);
+        executeInTransaction(() -> syncCategories(firebaseUid, safeList(request.getCategories()), response));
+        executeInTransaction(() -> syncExpenses(firebaseUid, safeList(request.getExpenses()), response));
+        executeInTransaction(() -> syncBudgets(firebaseUid, safeList(request.getBudgets()), response));
         syncGoals(firebaseUid, safeList(request.getGoals()), response);
-        syncRecurring(firebaseUid, safeList(request.getRecurring()), response);
+        executeInTransaction(() -> syncRecurring(firebaseUid, safeList(request.getRecurring()), response));
 
         // Bill-split sync is intentionally backend-owned and not processed here yet.
         response.getSyncedItems().setBillSplit(0);
         return response;
     }
 
-    @Transactional(readOnly = true)
     public SyncPullResponseDto pull(
             String firebaseUid,
             OffsetDateTime expenseSince,
@@ -99,6 +96,11 @@ public class SyncService {
         response.setRecurring(recurring.stream().map(this::toRecurringItem).toList());
 
         return response;
+    }
+
+    private void executeInTransaction(Runnable action) {
+        TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
+        transactionTemplate.executeWithoutResult(status -> action.run());
     }
 
     private void syncCategories(
