@@ -5,7 +5,6 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Component;
@@ -15,7 +14,6 @@ import java.util.Arrays;
 import java.util.Locale;
 import java.util.Optional;
 
-@Slf4j
 @Component
 @RequiredArgsConstructor
 public class AuthCookieService {
@@ -71,7 +69,7 @@ public class AuthCookieService {
 
     private String resolveSameSite(String sameSite, boolean cookieSecure) {
         if (!StringUtils.hasText(sameSite)) {
-            return "Lax";
+            throw new IllegalStateException("app.auth.same-site must be configured explicitly");
         }
 
         String normalized = sameSite.trim().toLowerCase(Locale.ROOT);
@@ -79,16 +77,12 @@ public class AuthCookieService {
             case "strict" -> "Strict";
             case "none" -> {
                 if (!cookieSecure) {
-                    log.warn("app.auth.same-site=None requires secure cookies; falling back to Lax.");
-                    yield "Lax";
+                    throw new IllegalStateException("SameSite=None requires secure cookies");
                 }
                 yield "None";
             }
             case "lax" -> "Lax";
-            default -> {
-                log.warn("Unsupported app.auth.same-site value '{}'; falling back to Lax.", sameSite);
-                yield "Lax";
-            }
+            default -> throw new IllegalStateException("Unsupported app.auth.same-site value: " + sameSite);
         };
     }
 }

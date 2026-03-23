@@ -51,8 +51,7 @@ public class AuthController {
     public ResponseEntity<AuthSessionResponse> createSession(
             @Valid @RequestBody AuthSessionRequest request,
             HttpServletResponse response) {
-        AuthenticatedFirebaseUser authenticatedUser = firebaseAuthenticationService.authenticate(request.idToken(),
-                true);
+        firebaseAuthenticationService.authenticate(request.idToken(), true);
         String sessionCookie = firebaseAuthenticationService.createSessionCookie(request.idToken());
         AuthenticatedFirebaseUser sessionUser = firebaseAuthenticationService.authenticateSessionCookie(
                 sessionCookie,
