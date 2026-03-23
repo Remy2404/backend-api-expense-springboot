@@ -35,11 +35,19 @@ public class AuthCookieService {
     }
 
     public void writeAccessToken(HttpServletResponse response, String token, long maxAgeSeconds) {
-        response.addHeader(HttpHeaders.SET_COOKIE, buildAccessCookie(token, Math.max(maxAgeSeconds, 0L)).toString());
+        String cookieString = buildAccessCookie(token, Math.max(maxAgeSeconds, 0L)).toString();
+        if (cookieString.contains("SameSite=None")) {
+            cookieString += "; Partitioned";
+        }
+        response.addHeader(HttpHeaders.SET_COOKIE, cookieString);
     }
 
     public void clearAccessToken(HttpServletResponse response) {
-        response.addHeader(HttpHeaders.SET_COOKIE, buildAccessCookie("", 0L).toString());
+        String cookieString = buildAccessCookie("", 0L).toString();
+        if (cookieString.contains("SameSite=None")) {
+            cookieString += "; Partitioned";
+        }
+        response.addHeader(HttpHeaders.SET_COOKIE, cookieString);
     }
 
     private ResponseCookie buildAccessCookie(String token, long maxAgeSeconds) {
