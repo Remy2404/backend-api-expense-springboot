@@ -39,3 +39,4 @@ supabase/*
 supabase/
 supabase/migrations/
 supabase/migrations/*.sql
+bin

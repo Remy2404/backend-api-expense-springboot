@@ -5,6 +5,7 @@ import com.wing.backendapiexpensespringboot.exception.AppException;
 import com.wing.backendapiexpensespringboot.model.CategoryEntity;
 import com.wing.backendapiexpensespringboot.security.UserPrincipal;
 import com.wing.backendapiexpensespringboot.service.CategoryService;
+import com.wing.backendapiexpensespringboot.service.DefaultCategoryProvisioningService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -24,11 +25,16 @@ import java.util.UUID;
 public class CategoryController {
 
     private final CategoryService categoryService;
+    private final DefaultCategoryProvisioningService defaultCategoryProvisioningService;
 
     @GetMapping
     public ResponseEntity<List<CategoryDto>> listCategories(@AuthenticationPrincipal UserPrincipal user) {
         String firebaseUid = requireFirebaseUid(user);
         List<CategoryEntity> entities = categoryService.getCategories(firebaseUid);
+        if (entities.isEmpty()) {
+            defaultCategoryProvisioningService.provisionMissingDefaultCategories(firebaseUid);
+            entities = categoryService.getCategories(firebaseUid);
+        }
         List<CategoryDto> dtos = entities.stream().map(this::toDto).toList();
         return ResponseEntity.ok(dtos);
     }
