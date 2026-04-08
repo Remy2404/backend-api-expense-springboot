@@ -32,12 +32,15 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -54,15 +57,16 @@ public class SyncService {
     private final ImageKitMediaService imageKitMediaService;
     private final EntityManager entityManager;
     private final PlatformTransactionManager transactionManager;
+    private final DatabaseRetryExecutor databaseRetryExecutor;
 
     public SyncPushResponseDto push(String firebaseUid, SyncPushRequestDto request) {
         SyncPushResponseDto response = SyncPushResponseDto.empty();
 
-        executeInTransaction(() -> syncCategories(firebaseUid, safeList(request.getCategories()), response));
-        executeInTransaction(() -> syncExpenses(firebaseUid, safeList(request.getExpenses()), response));
-        executeInTransaction(() -> syncBudgets(firebaseUid, safeList(request.getBudgets()), response));
+        executeInTransaction("category sync", () -> syncCategories(firebaseUid, safeList(request.getCategories()), response));
+        executeInTransaction("expense sync", () -> syncExpenses(firebaseUid, safeList(request.getExpenses()), response));
+        executeInTransaction("budget sync", () -> syncBudgets(firebaseUid, safeList(request.getBudgets()), response));
         syncGoals(firebaseUid, safeList(request.getGoals()), response);
-        executeInTransaction(() -> syncRecurring(firebaseUid, safeList(request.getRecurring()), response));
+        executeInTransaction("recurring sync", () -> syncRecurring(firebaseUid, safeList(request.getRecurring()), response));
 
         // Bill-split sync is intentionally backend-owned and not processed here yet.
         response.getSyncedItems().setBillSplit(0);
@@ -98,15 +102,34 @@ public class SyncService {
         return response;
     }
 
-    private void executeInTransaction(Runnable action) {
+    private void executeInTransaction(String operation, Runnable action) {
         TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
-        transactionTemplate.executeWithoutResult(status -> action.run());
+        databaseRetryExecutor.run(
+                operation,
+                () -> transactionTemplate.executeWithoutResult(status -> action.run()));
     }
 
     private void syncCategories(
             String firebaseUid,
             List<SyncPushRequestDto.CategoryItem> items,
             SyncPushResponseDto response) {
+        Map<UUID, CategoryEntity> existingById = items.isEmpty()
+                ? Map.of()
+                : categoryRepository.findAllById(
+                                items.stream()
+                                        .map(SyncPushRequestDto.CategoryItem::getId)
+                                        .map(this::parseUuid)
+                                        .filter(java.util.Objects::nonNull)
+                                        .toList())
+                        .stream()
+                        .collect(Collectors.toMap(CategoryEntity::getId, category -> category));
+        Map<String, CategoryEntity> activeByKey = new HashMap<>();
+        for (CategoryEntity existingCategory : categoryRepository.findActiveByFirebaseUidOrderByNameAsc(firebaseUid)) {
+            activeByKey.putIfAbsent(categoryKey(existingCategory.getName(), existingCategory.getCategoryType()),
+                    existingCategory);
+        }
+
+        List<CategoryEntity> entitiesToSave = new ArrayList<>();
         for (SyncPushRequestDto.CategoryItem item : items) {
             UUID id = parseUuid(item.getId());
             if (id == null) {
@@ -114,60 +137,41 @@ public class SyncService {
                 continue;
             }
 
-            Optional<CategoryEntity> existingOpt = categoryRepository.findById(id);
-            if (existingOpt.isPresent() && !firebaseUid.equals(existingOpt.get().getFirebaseUid())) {
+            CategoryEntity existing = existingById.get(id);
+            if (existing != null && !firebaseUid.equals(existing.getFirebaseUid())) {
                 addFailed(response, item.getId(), "category", "Forbidden category ownership");
                 continue;
             }
 
-            boolean seeded = false;
-            if (existingOpt.isEmpty()) {
-                seedCategoryRow(id, firebaseUid);
-                existingOpt = categoryRepository.findById(id);
-                seeded = true;
-            }
-            CategoryEntity entity = existingOpt.orElseGet(CategoryEntity::new);
+            CategoryEntity entity = existing == null ? new CategoryEntity() : existing;
             OffsetDateTime incomingUpdatedAt = parseDateTime(item.getUpdatedAt());
-            if (!seeded && isStale(entity.getUpdatedAt(), incomingUpdatedAt)) {
+            if (existing != null && isStale(entity.getUpdatedAt(), incomingUpdatedAt)) {
                 addFailed(response, item.getId(), "category", "Stale category update");
                 continue;
             }
 
             String normalizedName = normalizeText(item.getName(), "Uncategorized");
             String normalizedCategoryType = normalizeCategoryType(item.getCategoryType());
+            String categoryKey = categoryKey(normalizedName, normalizedCategoryType);
             boolean incomingDeleted = Boolean.TRUE.equals(item.getIsDeleted());
 
             if (!incomingDeleted) {
-                Optional<CategoryEntity> duplicateActiveCategory = findActiveCategoryDuplicate(
-                        firebaseUid,
-                        id,
-                        normalizedName,
-                        normalizedCategoryType);
-                if (duplicateActiveCategory.isPresent()) {
-                    UUID canonicalId = duplicateActiveCategory.get().getId();
+                CategoryEntity duplicateActiveCategory = activeByKey.get(categoryKey);
+                if (duplicateActiveCategory != null && !id.equals(duplicateActiveCategory.getId())) {
+                    UUID canonicalId = duplicateActiveCategory.getId();
                     remapCategoryReferences(firebaseUid, id, canonicalId);
                     OffsetDateTime incomingDeletedAt = parseDateTime(item.getDeletedAt());
 
-                    entity.setId(id);
-                    entity.setFirebaseUid(firebaseUid);
-                    entity.setName(normalizedName);
-                    entity.setIcon(item.getIcon());
-                    entity.setColor(item.getColor());
-                    entity.setIsDefault(Boolean.TRUE.equals(item.getIsDefault()));
-                    entity.setCategoryType(normalizedCategoryType);
-                    entity.setSortOrder(item.getSortOrder());
-                    entity.setIsDeleted(true);
-                    entity.setDeletedAt(incomingDeletedAt == null
-                            ? resolveUpdatedAt(item.getUpdatedAt())
-                            : incomingDeletedAt);
-                    entity.setRetryCount(item.getRetryCount());
-                    entity.setLastError(item.getLastError());
-                    entity.setCreatedAt(resolveCreatedAt(entity.getCreatedAt(), item.getCreatedAt()));
-                    entity.setUpdatedAt(resolveUpdatedAt(item.getUpdatedAt()));
-                    entity.setSyncedAt(resolveSyncedAt(item.getSyncedAt()));
-                    entity.setSyncStatus(resolveSyncStatus(item.getSyncedAt()));
-
-                    categoryRepository.save(entity);
+                    applyCategoryState(
+                            entity,
+                            id,
+                            firebaseUid,
+                            normalizedName,
+                            normalizedCategoryType,
+                            item,
+                            true,
+                            incomingDeletedAt == null ? resolveUpdatedAt(item.getUpdatedAt()) : incomingDeletedAt);
+                    entitiesToSave.add(entity);
                     response.getSyncedItems().setCategories(response.getSyncedItems().getCategories() + 1);
                     log.warn(
                             "Merged duplicate category {} into canonical {} for user {}",
@@ -178,40 +182,62 @@ public class SyncService {
                 }
             }
 
-            entity.setId(id);
-            entity.setFirebaseUid(firebaseUid);
-            entity.setName(normalizedName);
-            entity.setIcon(item.getIcon());
-            entity.setColor(item.getColor());
-            entity.setIsDefault(Boolean.TRUE.equals(item.getIsDefault()));
-            entity.setCategoryType(normalizedCategoryType);
-            entity.setSortOrder(item.getSortOrder());
-            entity.setIsDeleted(incomingDeleted);
-            entity.setDeletedAt(parseDateTime(item.getDeletedAt()));
-            entity.setRetryCount(item.getRetryCount());
-            entity.setLastError(item.getLastError());
-            entity.setCreatedAt(resolveCreatedAt(entity.getCreatedAt(), item.getCreatedAt()));
-            entity.setUpdatedAt(resolveUpdatedAt(item.getUpdatedAt()));
-            entity.setSyncedAt(resolveSyncedAt(item.getSyncedAt()));
-            entity.setSyncStatus(resolveSyncStatus(item.getSyncedAt()));
-
-            categoryRepository.save(entity);
+            applyCategoryState(
+                    entity,
+                    id,
+                    firebaseUid,
+                    normalizedName,
+                    normalizedCategoryType,
+                    item,
+                    incomingDeleted,
+                    parseDateTime(item.getDeletedAt()));
+            entitiesToSave.add(entity);
             response.getSyncedItems().setCategories(response.getSyncedItems().getCategories() + 1);
+
+            if (incomingDeleted) {
+                CategoryEntity activeCategory = activeByKey.get(categoryKey);
+                if (activeCategory != null && id.equals(activeCategory.getId())) {
+                    activeByKey.remove(categoryKey);
+                }
+            } else {
+                activeByKey.put(categoryKey, entity);
+            }
+        }
+
+        if (!entitiesToSave.isEmpty()) {
+            categoryRepository.saveAll(entitiesToSave);
         }
     }
 
-    private Optional<CategoryEntity> findActiveCategoryDuplicate(
+    private void applyCategoryState(
+            CategoryEntity entity,
+            UUID id,
             String firebaseUid,
-            UUID categoryId,
-            String name,
-            String categoryType) {
-        return categoryRepository.findActiveDuplicatesByNameAndTypeExcludingId(
-                        firebaseUid,
-                        name,
-                        categoryType,
-                        categoryId)
-                .stream()
-                .findFirst();
+            String normalizedName,
+            String normalizedCategoryType,
+            SyncPushRequestDto.CategoryItem item,
+            boolean incomingDeleted,
+            OffsetDateTime deletedAt) {
+        entity.setId(id);
+        entity.setFirebaseUid(firebaseUid);
+        entity.setName(normalizedName);
+        entity.setIcon(item.getIcon());
+        entity.setColor(item.getColor());
+        entity.setIsDefault(Boolean.TRUE.equals(item.getIsDefault()));
+        entity.setCategoryType(normalizedCategoryType);
+        entity.setSortOrder(item.getSortOrder());
+        entity.setIsDeleted(incomingDeleted);
+        entity.setDeletedAt(deletedAt);
+        entity.setRetryCount(item.getRetryCount());
+        entity.setLastError(item.getLastError());
+        entity.setCreatedAt(resolveCreatedAt(entity.getCreatedAt(), item.getCreatedAt()));
+        entity.setUpdatedAt(resolveUpdatedAt(item.getUpdatedAt()));
+        entity.setSyncedAt(resolveSyncedAt(item.getSyncedAt()));
+        entity.setSyncStatus(resolveSyncStatus(item.getSyncedAt()));
+    }
+
+    private String categoryKey(String name, String categoryType) {
+        return normalizeText(name, "Uncategorized").toLowerCase(Locale.ROOT) + "|" + normalizeCategoryType(categoryType);
     }
 
     private void remapCategoryReferences(String firebaseUid, UUID fromCategoryId, UUID toCategoryId) {
@@ -551,21 +577,6 @@ public class SyncService {
             recurringExpenseRepository.save(entity);
             response.getSyncedItems().setRecurring(response.getSyncedItems().getRecurring() + 1);
         }
-    }
-
-    private void seedCategoryRow(UUID id, String firebaseUid) {
-        entityManager.createNativeQuery("""
-                insert into categories (id, firebase_uid, name, icon, color, category_type)
-                values (:id, :firebaseUid, :name, :icon, :color, :categoryType)
-                on conflict (id) do nothing
-                """)
-                .setParameter("id", id)
-                .setParameter("firebaseUid", firebaseUid)
-                .setParameter("name", "Uncategorized")
-                .setParameter("icon", "circle")
-                .setParameter("color", "#425d84ff")
-                .setParameter("categoryType", "EXPENSE")
-                .executeUpdate();
     }
 
     private void seedExpenseRow(UUID id, String firebaseUid) {

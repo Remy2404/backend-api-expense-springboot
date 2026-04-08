@@ -8,13 +8,16 @@ import com.wing.backendapiexpensespringboot.security.AuthCookieService;
 import com.wing.backendapiexpensespringboot.security.FirebaseAuthenticationService;
 import com.wing.backendapiexpensespringboot.security.FirebaseAuthenticationService.AuthenticatedFirebaseUser;
 import com.wing.backendapiexpensespringboot.security.UserPrincipal;
+import com.wing.backendapiexpensespringboot.service.UserOnboardingService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.core.task.TaskRejectedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,6 +25,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Instant;
+
+@Slf4j
 @RestController
 @RequestMapping("/auth")
 @RequiredArgsConstructor
@@ -31,6 +37,7 @@ public class AuthController {
     private final AppConfig appConfig;
     private final AuthCookieService authCookieService;
     private final FirebaseAuthenticationService firebaseAuthenticationService;
+    private final UserOnboardingService userOnboardingService;
 
     @GetMapping("/session")
     public ResponseEntity<AuthSessionResponse> getSession(HttpServletRequest request) {
@@ -39,9 +46,7 @@ public class AuthController {
             return ResponseEntity.ok(AuthSessionResponse.builder().build());
         }
 
-        AuthenticatedFirebaseUser authenticatedUser = firebaseAuthenticationService.authenticateSessionCookie(
-                sessionCookie,
-                false);
+        AuthenticatedFirebaseUser authenticatedUser = firebaseAuthenticationService.authenticateSessionCookie(sessionCookie);
         return ResponseEntity.ok(toSessionResponse(
                 authenticatedUser,
                 firebaseAuthenticationService.issueCustomToken(authenticatedUser.principal())));
@@ -51,16 +56,14 @@ public class AuthController {
     public ResponseEntity<AuthSessionResponse> createSession(
             @Valid @RequestBody AuthSessionRequest request,
             HttpServletResponse response) {
-        firebaseAuthenticationService.authenticate(request.idToken(), true);
+        AuthenticatedFirebaseUser authenticatedUser = firebaseAuthenticationService.authenticate(request.idToken());
         String sessionCookie = firebaseAuthenticationService.createSessionCookie(request.idToken());
-        AuthenticatedFirebaseUser sessionUser = firebaseAuthenticationService.authenticateSessionCookie(
-                sessionCookie,
-                false);
         authCookieService.writeAccessToken(
                 response,
                 sessionCookie,
                 appConfig.getAuth().getSessionMaxAgeSeconds());
-        return ResponseEntity.ok(toSessionResponse(sessionUser, null));
+        submitWarmUp(authenticatedUser.principal());
+        return ResponseEntity.ok(toSessionResponse(toSessionScopedUser(authenticatedUser.principal()), null));
     }
 
     @PostMapping("/logout")
@@ -69,7 +72,7 @@ public class AuthController {
             authCookieService.readAccessToken(request).ifPresent(sessionCookie -> {
                 try {
                     AuthenticatedFirebaseUser authenticatedUser = firebaseAuthenticationService
-                            .authenticateSessionCookie(sessionCookie, false);
+                            .authenticateSessionCookie(sessionCookie);
                     firebaseAuthenticationService.revokeRefreshTokens(authenticatedUser.principal().getFirebaseUid());
                 } catch (AppException exception) {
                     if (exception.getStatusCode() != HttpStatus.UNAUTHORIZED) {
@@ -96,5 +99,20 @@ public class AuthController {
                 .expiresAtEpochSeconds(authenticatedUser.expiresAtEpochSeconds())
                 .firebaseCustomToken(firebaseCustomToken)
                 .build();
+    }
+
+    private void submitWarmUp(UserPrincipal principal) {
+        try {
+            userOnboardingService.warmUpAfterSessionCreated(principal);
+        } catch (TaskRejectedException taskRejectedException) {
+            log.warn("User bootstrap executor is saturated for {}: {}",
+                    principal == null ? "unknown" : principal.getFirebaseUid(),
+                    taskRejectedException.getMessage());
+        }
+    }
+
+    private AuthenticatedFirebaseUser toSessionScopedUser(UserPrincipal principal) {
+        long expiresAtEpochSeconds = Instant.now().getEpochSecond() + appConfig.getAuth().getSessionMaxAgeSeconds();
+        return new AuthenticatedFirebaseUser(principal, expiresAtEpochSeconds);
     }
 }

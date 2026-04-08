@@ -7,6 +7,7 @@ import com.wing.backendapiexpensespringboot.exception.AppException;
 import com.wing.backendapiexpensespringboot.security.UserPrincipal;
 import com.wing.backendapiexpensespringboot.service.RealtimeRelayService;
 import com.wing.backendapiexpensespringboot.service.SyncService;
+import com.wing.backendapiexpensespringboot.service.UserOnboardingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -31,6 +32,7 @@ public class SyncController {
 
     private final SyncService syncService;
     private final RealtimeRelayService realtimeRelayService;
+    private final UserOnboardingService userOnboardingService;
 
     @PostMapping("/push")
     public ResponseEntity<SyncPushResponseDto> push(
@@ -38,6 +40,7 @@ public class SyncController {
             @RequestBody(required = false) SyncPushRequestDto request
     ) {
         String firebaseUid = requireFirebaseUid(user);
+        userOnboardingService.ensureProfileReady(user);
         SyncPushRequestDto safeRequest = request == null ? new SyncPushRequestDto() : request;
         SyncPushResponseDto response = syncService.push(firebaseUid, safeRequest);
 

@@ -6,9 +6,7 @@ import com.google.firebase.auth.FirebaseToken;
 import com.google.firebase.auth.SessionCookieOptions;
 import com.wing.backendapiexpensespringboot.config.AppConfig;
 import com.wing.backendapiexpensespringboot.exception.AppException;
-import com.wing.backendapiexpensespringboot.service.ProfileProvisioningService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -29,17 +27,15 @@ public class FirebaseAuthenticationService {
 
     private final FirebaseAuth firebaseAuth;
     private final AppConfig appConfig;
-    private final ProfileProvisioningService profileProvisioningService;
-    private final ObjectProvider<RoleLookupService> roleLookupServiceProvider;
 
-    public AuthenticatedFirebaseUser authenticate(String idToken, boolean synchronizeProfile) {
+    public AuthenticatedFirebaseUser authenticate(String idToken) {
         if (!StringUtils.hasText(idToken)) {
             throw AppException.unauthorized("Missing authentication token.");
         }
 
         try {
             FirebaseToken decodedToken = firebaseAuth.verifyIdToken(idToken.trim(), true);
-            return toAuthenticatedUser(decodedToken, synchronizeProfile);
+            return toAuthenticatedUser(decodedToken);
         } catch (FirebaseAuthException exception) {
             throw AppException.unauthorized("Invalid or expired Firebase token.");
         }
@@ -62,14 +58,14 @@ public class FirebaseAuthenticationService {
         }
     }
 
-    public AuthenticatedFirebaseUser authenticateSessionCookie(String sessionCookie, boolean synchronizeProfile) {
+    public AuthenticatedFirebaseUser authenticateSessionCookie(String sessionCookie) {
         if (!StringUtils.hasText(sessionCookie)) {
             throw AppException.unauthorized("Missing session cookie.");
         }
 
         try {
             FirebaseToken decodedToken = firebaseAuth.verifySessionCookie(sessionCookie.trim(), true);
-            return toAuthenticatedUser(decodedToken, synchronizeProfile);
+            return toAuthenticatedUser(decodedToken);
         } catch (FirebaseAuthException exception) {
             throw AppException.unauthorized("Invalid or expired Firebase session cookie.");
         }
@@ -104,7 +100,7 @@ public class FirebaseAuthenticationService {
         }
     }
 
-    private AuthenticatedFirebaseUser toAuthenticatedUser(FirebaseToken decodedToken, boolean synchronizeProfile) {
+    private AuthenticatedFirebaseUser toAuthenticatedUser(FirebaseToken decodedToken) {
         String firebaseUid = decodedToken.getUid();
         if (!StringUtils.hasText(firebaseUid)) {
             throw AppException.unauthorized("Token missing user identity.");
@@ -114,15 +110,13 @@ public class FirebaseAuthenticationService {
         String email = firstNonBlank(decodedToken.getEmail(), claimAsText(claims, "email"));
         String displayName = claimAsText(claims, "name");
         String photoUrl = claimAsText(claims, "picture");
-        AppRole claimedRole = AppRole.from(claims.get("role"));
-
-        AppRole resolvedRole = synchronizeProfile
-                ? profileProvisioningService.syncProfile(firebaseUid, email, displayName, photoUrl, claimedRole)
-                : resolveRole(firebaseUid, claims, claimedRole);
+        AppRole resolvedRole = AppRole.from(claims.get("role"));
 
         UserPrincipal principal = UserPrincipal.builder()
                 .firebaseUid(firebaseUid)
                 .email(email)
+                .displayName(displayName)
+                .photoUrl(photoUrl)
                 .role(resolvedRole.name())
                 .claims(claims)
                 .build();
@@ -137,21 +131,6 @@ public class FirebaseAuthenticationService {
         }
 
         return Collections.unmodifiableMap(new LinkedHashMap<>(claims));
-    }
-
-    private AppRole resolveRole(String firebaseUid, Map<String, Object> claims, AppRole claimedRole) {
-        if (claims.containsKey("role")) {
-            return claimedRole;
-        }
-
-        RoleLookupService lookupService = roleLookupServiceProvider.getIfAvailable();
-        if (lookupService == null) {
-            return AppRole.USER;
-        }
-
-        return lookupService.findRoleByFirebaseUid(firebaseUid)
-                .map(AppRole::from)
-                .orElse(AppRole.USER);
     }
 
     private long resolveExpiresAtEpochSeconds(Map<String, Object> claims) {

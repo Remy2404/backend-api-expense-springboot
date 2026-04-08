@@ -18,6 +18,8 @@ public class UserPrincipal {
 
     private String firebaseUid;
     private String email;
+    private String displayName;
+    private String photoUrl;
     private String role;
     private Map<String, Object> claims;
 

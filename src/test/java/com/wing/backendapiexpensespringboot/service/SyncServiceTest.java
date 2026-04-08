@@ -16,6 +16,7 @@ import com.wing.backendapiexpensespringboot.repository.RecurringExpenseRepositor
 import com.wing.backendapiexpensespringboot.repository.SavingsGoalRepository;
 import com.wing.backendapiexpensespringboot.service.media.ImageKitMediaService;
 import jakarta.persistence.EntityManager;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -35,7 +36,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -73,8 +76,22 @@ class SyncServiceTest {
     @Mock
     private PlatformTransactionManager transactionManager;
 
+    @Mock
+    private DatabaseRetryExecutor databaseRetryExecutor;
+
     @InjectMocks
     private SyncService syncService;
+
+    @BeforeEach
+    void setUp() {
+        when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
+        doNothing().when(transactionManager).commit(any());
+        doAnswer(invocation -> {
+            Runnable action = invocation.getArgument(1);
+            action.run();
+            return null;
+        }).when(databaseRetryExecutor).run(anyString(), any(Runnable.class));
+    }
 
     @Test
     void pushCategoryKeepsPendingStatusWhenSyncedAtIsNull() {
@@ -86,8 +103,9 @@ class SyncServiceTest {
         existing.setFirebaseUid(firebaseUid);
         existing.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(5));
 
-        when(categoryRepository.findById(categoryId)).thenReturn(Optional.of(existing));
-        when(categoryRepository.save(any(CategoryEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(categoryRepository.findAllById(any())).thenReturn(List.of(existing));
+        when(categoryRepository.findActiveByFirebaseUidOrderByNameAsc(firebaseUid)).thenReturn(List.of(existing));
+        when(categoryRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         SyncPushRequestDto.CategoryItem item = new SyncPushRequestDto.CategoryItem();
         item.setId(categoryId.toString());
@@ -101,10 +119,12 @@ class SyncServiceTest {
 
         SyncPushResponseDto response = syncService.push(firebaseUid, request);
 
-        ArgumentCaptor<CategoryEntity> categoryCaptor = ArgumentCaptor.forClass(CategoryEntity.class);
-        verify(categoryRepository).save(categoryCaptor.capture());
-        assertEquals("pending", categoryCaptor.getValue().getSyncStatus());
-        assertNull(categoryCaptor.getValue().getSyncedAt());
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<CategoryEntity>> categoryCaptor = ArgumentCaptor.forClass(List.class);
+        verify(categoryRepository).saveAll(categoryCaptor.capture());
+        CategoryEntity savedCategory = categoryCaptor.getValue().getFirst();
+        assertEquals("pending", savedCategory.getSyncStatus());
+        assertNull(savedCategory.getSyncedAt());
         assertEquals(1, response.getSyncedItems().getCategories());
     }
 
@@ -234,8 +254,6 @@ class SyncServiceTest {
         existingTransaction.setId(existingTransactionId);
         existingTransaction.setGoalId(goalId);
 
-        when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
-        doNothing().when(transactionManager).commit(any());
         when(savingsGoalRepository.findById(goalId)).thenReturn(Optional.of(existingGoal));
         when(savingsGoalRepository.save(any(SavingsGoalEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(goalTransactionRepository.findByGoalIdOrderByDateDesc(goalId)).thenReturn(List.of(existingTransaction));
@@ -280,7 +298,6 @@ class SyncServiceTest {
         verify(entityManager).persist(transactionCaptor.capture());
         verify(goalTransactionRepository, never()).save(any(GoalTransactionEntity.class));
         verify(goalTransactionRepository, never()).existsById(any());
-        verify(transactionManager).commit(any());
 
         GoalTransactionEntity persistedTransaction = transactionCaptor.getValue();
         assertEquals(newTransactionId, persistedTransaction.getId());

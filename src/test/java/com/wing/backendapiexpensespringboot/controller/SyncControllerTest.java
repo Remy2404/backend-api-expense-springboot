@@ -7,6 +7,7 @@ import com.wing.backendapiexpensespringboot.security.FirebaseAuthFilter;
 import com.wing.backendapiexpensespringboot.security.UserPrincipal;
 import com.wing.backendapiexpensespringboot.service.RealtimeRelayService;
 import com.wing.backendapiexpensespringboot.service.SyncService;
+import com.wing.backendapiexpensespringboot.service.UserOnboardingService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -48,6 +49,9 @@ class SyncControllerTest {
         @MockBean
         private RealtimeRelayService realtimeRelayService;
 
+        @MockBean
+        private UserOnboardingService userOnboardingService;
+
         @Test
         void pushDelegatesToService() throws Exception {
                 when(syncService.push(eq(FIREBASE_UID), any(SyncPushRequestDto.class)))
@@ -59,6 +63,7 @@ class SyncControllerTest {
                                 .with(authenticatedUser()))
                                 .andExpect(status().isOk());
 
+                verify(userOnboardingService).ensureProfileReady(any(UserPrincipal.class));
                 verify(syncService).push(eq(FIREBASE_UID), any(SyncPushRequestDto.class));
         }
 
@@ -81,6 +86,7 @@ class SyncControllerTest {
                                 .with(authenticatedUser()))
                                 .andExpect(status().isOk());
 
+                verify(userOnboardingService).ensureProfileReady(any(UserPrincipal.class));
                 verify(syncService).push(eq(FIREBASE_UID), any(SyncPushRequestDto.class));
         }
 

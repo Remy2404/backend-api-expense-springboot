@@ -1,10 +1,13 @@
 package com.wing.backendapiexpensespringboot.exception;
 
+import org.hibernate.exception.JDBCConnectionException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.InvalidDataAccessApiUsageException;
+import org.springframework.dao.TransientDataAccessException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -57,6 +60,18 @@ public class GlobalExceptionHandler {
                 return ResponseEntity
                                 .status(HttpStatus.CONFLICT)
                                 .body(Map.of("detail", "Persistence conflict. Please retry the request."));
+        }
+
+        @ExceptionHandler({
+                        CannotCreateTransactionException.class,
+                        TransientDataAccessException.class,
+                        JDBCConnectionException.class
+        })
+        public ResponseEntity<Map<String, String>> handleTransientDatabaseFailure(Exception ex) {
+                log.warn("Transient database failure: {}", ex.getMessage());
+                return ResponseEntity
+                                .status(HttpStatus.SERVICE_UNAVAILABLE)
+                                .body(Map.of("detail", "Database temporarily unavailable. Please retry."));
         }
 
         @ExceptionHandler(Exception.class)

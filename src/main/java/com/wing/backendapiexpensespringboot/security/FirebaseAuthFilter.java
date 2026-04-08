@@ -97,10 +97,10 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
             String bearerToken,
             String sessionCookie) {
         if (StringUtils.hasText(bearerToken)) {
-            return firebaseAuthenticationService.authenticate(bearerToken, true);
+            return firebaseAuthenticationService.authenticate(bearerToken);
         }
 
-        return firebaseAuthenticationService.authenticateSessionCookie(sessionCookie, true);
+        return firebaseAuthenticationService.authenticateSessionCookie(sessionCookie);
     }
 
     private String extractBearerToken(HttpServletRequest request) {
