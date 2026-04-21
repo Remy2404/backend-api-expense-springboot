@@ -12,13 +12,13 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -27,6 +27,9 @@ public class ImageKitMediaService {
     private static final String HMAC_SHA1_ALGORITHM = "HmacSHA1";
     private static final long MAX_UPLOAD_AUTH_TTL_SECONDS = 3599L;
     private static final int MAX_RECEIPTS_PER_EXPENSE = 10;
+
+    // Security Fix: Use SecureRandom for cryptographically secure token generation
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final ImageKitProperties imageKitProperties;
 
@@ -37,7 +40,8 @@ public class ImageKitMediaService {
         long expire = now + Math.min(
                 Math.max(imageKitProperties.getUploadTokenTtlSeconds(), 60L),
                 MAX_UPLOAD_AUTH_TTL_SECONDS);
-        String token = UUID.randomUUID().toString();
+        // Security Fix: Replace insecure UUID.randomUUID() with cryptographically secure token
+        String token = generateSecureToken();
         String signature = signHex(token + expire, imageKitProperties.getPrivateKey());
 
         return ImageUploadAuthResponse.builder()
@@ -264,5 +268,22 @@ public class ImageKitMediaService {
         if (!isConfigured()) {
             throw AppException.internalError("ImageKit is not configured");
         }
+    }
+
+    /**
+     * Security Fix: Generate cryptographically secure random token.
+     * Uses SecureRandom instead of UUID.randomUUID() for better security.
+     */
+    private String generateSecureToken() {
+        byte[] randomBytes = new byte[16];
+        SECURE_RANDOM.nextBytes(randomBytes);
+
+        // Convert to hex string (similar format to UUID but cryptographically secure)
+        StringBuilder token = new StringBuilder(32);
+        for (byte b : randomBytes) {
+            token.append(String.format("%02x", b));
+        }
+
+        return token.toString();
     }
 }

@@ -14,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import jakarta.annotation.PostConstruct;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -31,10 +32,35 @@ import java.util.function.Consumer;
 @RequiredArgsConstructor
 public class OpenRouterService {
 
+    // Security Fix: Allowlist of valid OpenRouter base URLs to prevent SSRF
+    private static final String ALLOWED_BASE_URL = "https://openrouter.ai/api/v1";
+
     @Qualifier("openRouterRestTemplate")
     private final RestTemplate restTemplate;
     private final OpenRouterConfig openRouterConfig;
     private final ObjectMapper objectMapper;
+
+    /**
+     * Security Fix: Validate OpenRouter base URL on startup to prevent SSRF attacks.
+     * Only allows the official OpenRouter API endpoint.
+     */
+    @PostConstruct
+    public void validateConfiguration() {
+        String baseUrl = openRouterConfig.getBaseUrl();
+        if (baseUrl == null || baseUrl.trim().isEmpty()) {
+            throw new IllegalStateException("OpenRouter base URL is not configured");
+        }
+
+        String normalizedUrl = baseUrl.trim();
+        if (!normalizedUrl.equals(ALLOWED_BASE_URL)) {
+            throw new IllegalStateException(
+                    "Invalid OpenRouter base URL. Must be: " + ALLOWED_BASE_URL +
+                    " (got: " + normalizedUrl + ")"
+            );
+        }
+
+        log.info("OpenRouter configuration validated successfully");
+    }
 
     public String chat(String systemPrompt, String userMessage) {
         log.debug("Calling OpenRouter with model: {}", openRouterConfig.getModel());
