@@ -62,11 +62,14 @@ public class SyncService {
     public SyncPushResponseDto push(String firebaseUid, SyncPushRequestDto request) {
         SyncPushResponseDto response = SyncPushResponseDto.empty();
 
-        executeInTransaction("category sync", () -> syncCategories(firebaseUid, safeList(request.getCategories()), response));
-        executeInTransaction("expense sync", () -> syncExpenses(firebaseUid, safeList(request.getExpenses()), response));
+        executeInTransaction("category sync",
+                () -> syncCategories(firebaseUid, safeList(request.getCategories()), response));
+        executeInTransaction("expense sync",
+                () -> syncExpenses(firebaseUid, safeList(request.getExpenses()), response));
         executeInTransaction("budget sync", () -> syncBudgets(firebaseUid, safeList(request.getBudgets()), response));
         syncGoals(firebaseUid, safeList(request.getGoals()), response);
-        executeInTransaction("recurring sync", () -> syncRecurring(firebaseUid, safeList(request.getRecurring()), response));
+        executeInTransaction("recurring sync",
+                () -> syncRecurring(firebaseUid, safeList(request.getRecurring()), response));
 
         // Bill-split sync is intentionally backend-owned and not processed here yet.
         response.getSyncedItems().setBillSplit(0);
@@ -116,11 +119,11 @@ public class SyncService {
         Map<UUID, CategoryEntity> existingById = items.isEmpty()
                 ? Map.of()
                 : categoryRepository.findAllById(
-                                items.stream()
-                                        .map(SyncPushRequestDto.CategoryItem::getId)
-                                        .map(this::parseUuid)
-                                        .filter(java.util.Objects::nonNull)
-                                        .toList())
+                        items.stream()
+                                .map(SyncPushRequestDto.CategoryItem::getId)
+                                .map(this::parseUuid)
+                                .filter(java.util.Objects::nonNull)
+                                .toList())
                         .stream()
                         .collect(Collectors.toMap(CategoryEntity::getId, category -> category));
         Map<String, CategoryEntity> activeByKey = new HashMap<>();
@@ -237,7 +240,8 @@ public class SyncService {
     }
 
     private String categoryKey(String name, String categoryType) {
-        return normalizeText(name, "Uncategorized").toLowerCase(Locale.ROOT) + "|" + normalizeCategoryType(categoryType);
+        return normalizeText(name, "Uncategorized").toLowerCase(Locale.ROOT) + "|"
+                + normalizeCategoryType(categoryType);
     }
 
     private void remapCategoryReferences(String firebaseUid, UUID fromCategoryId, UUID toCategoryId) {
@@ -336,7 +340,8 @@ public class SyncService {
             entity.setAiSource(item.getAiSource());
             entity.setAiLastUpdated(parseDateTime(item.getAiLastUpdated()));
             entity.setRecurringExpenseId(parseUuid(item.getRecurringExpenseId()));
-            entity.setReceiptPaths(imageKitMediaService.normalizeIncomingReceiptPaths(firebaseUid, item.getReceiptPaths()));
+            entity.setReceiptPaths(
+                    imageKitMediaService.normalizeIncomingReceiptPaths(firebaseUid, item.getReceiptPaths()));
             entity.setCurrency(normalizeText(item.getCurrency(), "USD"));
             entity.setOriginalAmount(toBigDecimalNullable(item.getOriginalAmount()));
             entity.setExchangeRate(toBigDecimalNullable(item.getExchangeRate()));
@@ -664,29 +669,6 @@ public class SyncService {
         }
     }
 
-    private void upsertGoalTransactions(UUID goalId, List<SyncPushRequestDto.GoalTransactionItem> items) {
-        if (items == null) {
-            return;
-        }
-
-        for (SyncPushRequestDto.GoalTransactionItem item : items) {
-            UUID id = parseUuid(item.getId());
-            if (id == null) {
-                continue;
-            }
-
-            GoalTransactionEntity entity = GoalTransactionEntity.builder()
-                    .id(id)
-                    .goalId(goalId)
-                    .amount(toBigDecimal(item.getAmount()))
-                    .type(normalizeText(item.getType(), "deposit"))
-                    .note(item.getNote())
-                    .date(resolveDateTimeOrNow(item.getDate()))
-                    .build();
-            goalTransactionRepository.save(entity);
-        }
-    }
-
     private void mergeGoalTransactions(UUID goalId, List<SyncPushRequestDto.GoalTransactionItem> items) {
         if (items == null) {
             items = List.of();
@@ -700,7 +682,8 @@ public class SyncService {
             }
         }
 
-        List<GoalTransactionEntity> existingTransactions = goalTransactionRepository.findByGoalIdOrderByDateDesc(goalId);
+        List<GoalTransactionEntity> existingTransactions = goalTransactionRepository
+                .findByGoalIdOrderByDateDesc(goalId);
         Map<UUID, GoalTransactionEntity> existingTransactionsById = new LinkedHashMap<>();
         for (GoalTransactionEntity existingTransaction : existingTransactions) {
             existingTransactionsById.put(existingTransaction.getId(), existingTransaction);
