@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -25,6 +26,16 @@ public interface CategoryRepository extends JpaRepository<CategoryEntity, UUID> 
     List<CategoryEntity> findActiveByFirebaseUidOrderByNameAsc(@Param("firebaseUid") String firebaseUid);
 
     Optional<CategoryEntity> findByIdAndFirebaseUid(UUID id, String firebaseUid);
+
+    @Query("""
+            SELECT c FROM CategoryEntity c
+            WHERE c.firebaseUid = :firebaseUid
+              AND c.id IN :ids
+              AND COALESCE(c.isDeleted, false) = false
+            """)
+    List<CategoryEntity> findActiveByFirebaseUidAndIdIn(
+            @Param("firebaseUid") String firebaseUid,
+            @Param("ids") Collection<UUID> ids);
 
     @Query("""
             SELECT c FROM CategoryEntity c

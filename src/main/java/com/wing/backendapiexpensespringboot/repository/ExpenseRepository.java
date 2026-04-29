@@ -1,6 +1,7 @@
 package com.wing.backendapiexpensespringboot.repository;
 
 import com.wing.backendapiexpensespringboot.model.ExpenseEntity;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -23,6 +24,16 @@ public interface ExpenseRepository extends JpaRepository<ExpenseEntity, UUID> {
     }
 
     List<ExpenseEntity> findByFirebaseUidOrderByDateDesc(String firebaseUid);
+
+    @Query("""
+            SELECT e FROM ExpenseEntity e
+            WHERE e.firebaseUid = :firebaseUid
+              AND COALESCE(e.isDeleted, false) = false
+            ORDER BY e.date DESC
+            """)
+    List<ExpenseEntity> findActiveByFirebaseUidOrderByDateDesc(
+            @Param("firebaseUid") String firebaseUid,
+            Pageable pageable);
 
     Optional<ExpenseEntity> findByIdAndFirebaseUid(UUID id, String firebaseUid);
 
