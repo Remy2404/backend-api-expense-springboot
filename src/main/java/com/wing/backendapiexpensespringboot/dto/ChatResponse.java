@@ -29,7 +29,7 @@ public class ChatResponse {
     @Builder.Default
     private Double confidence = 0.0;
 
-    private String intent; // "none", "add_transaction", "add_budget", "add_goal", "add_category", "add_recurring_expense", "query_expenses"
+    private String intent;
 
     @Builder.Default
     private Boolean silentAction = false;
@@ -49,4 +49,11 @@ public class ChatResponse {
     private List<String> safetyWarnings = List.of();
 
     private Map<String, Double> fieldConfidences;
+
+    private String pendingActionId;
+
+    private String actionType;
+
+    @Builder.Default
+    private List<String> missingFields = List.of();
 }

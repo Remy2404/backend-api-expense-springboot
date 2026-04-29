@@ -1,5 +1,6 @@
 package com.wing.backendapiexpensespringboot.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wing.backendapiexpensespringboot.config.OpenRouterConfig;
 import com.wing.backendapiexpensespringboot.dto.*;
@@ -32,11 +33,7 @@ public class AiOrchestratorService {
     private final OpenRouterConfig openRouterConfig;
     private final ObjectMapper objectMapper;
 
-    private static final String PARSE_PROMPT = """
-            You are an expense parser. Parse the following text and extract expense information.
-            Return JSON with: amount (number), currency (string), merchant (string), date (YYYY-MM-DD), note (string).
-            If you cannot determine a value, use null.
-            """;
+
 
     private static final String CATEGORIZE_PROMPT = """
             You are an expense categorizer. Given a merchant name and optional note,
@@ -585,24 +582,7 @@ public class AiOrchestratorService {
         return sb.toString();
     }
 
-    private String resolveCategory(String requested, List<CategoryEntity> categories) {
-        if (requested == null || requested.isEmpty())
-            return null;
-        String lower = requested.toLowerCase().trim();
 
-        // Exact match first
-        for (CategoryEntity c : categories) {
-            if (c.getName().equalsIgnoreCase(lower))
-                return c.getName();
-        }
-        // Partial match
-        for (CategoryEntity c : categories) {
-            if (c.getName().toLowerCase().contains(lower) || lower.contains(c.getName().toLowerCase())) {
-                return c.getName();
-            }
-        }
-        return null;
-    }
 
     private CategoryEntity resolveOrCreateCategory(String firebaseUid, String requested, List<CategoryEntity> categories) {
         return resolveOrCreateCategory(firebaseUid, requested, categories, CategoryType.EXPENSE);
@@ -657,6 +637,7 @@ public class AiOrchestratorService {
         return categoryType.name().equalsIgnoreCase(category.getCategoryType());
     }
 
+    @SuppressWarnings("unchecked")
     private List<ChatActionPayload> extractChatTransactions(
             String firebaseUid,
             Map<String, Object> parsed,
@@ -857,6 +838,7 @@ public class AiOrchestratorService {
         };
     }
 
+    @SuppressWarnings("unchecked")
     private ChatActionPayload buildNonTransactionPayload(
             String firebaseUid,
             String intent,
@@ -982,7 +964,7 @@ public class AiOrchestratorService {
     private Map<String, Object> parseJsonResponse(String response) {
         try {
             String cleaned = response.replaceAll("```json", "").replaceAll("```", "").trim();
-            return objectMapper.readValue(cleaned, Map.class);
+            return objectMapper.readValue(cleaned, new TypeReference<Map<String, Object>>() {});
         } catch (Exception e) {
             log.warn("Failed to parse JSON response: {}", response);
             return new HashMap<>();

@@ -46,6 +46,9 @@ class CategoryControllerTest {
         @MockitoBean
         private FirebaseAuthFilter firebaseAuthFilter;
 
+        @MockitoBean
+        private com.wing.backendapiexpensespringboot.service.DefaultCategoryProvisioningService defaultCategoryProvisioningService;
+
         @Test
         void listCategoriesReturnsOnlyActiveCategories() throws Exception {
                 UUID activeId = UUID.randomUUID();
