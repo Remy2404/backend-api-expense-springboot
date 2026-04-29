@@ -50,27 +50,13 @@ public class FirebaseAdminConfiguration {
 
     private GoogleCredentials loadCredentials() throws IOException {
         if (StringUtils.hasText(firebaseConfig.getServiceAccountPath())) {
-            // Security Fix: Validate file path to prevent path traversal attacks
-            String sanitizedPath = validateAndSanitizePath(firebaseConfig.getServiceAccountPath());
-            File credentialsFile = new File(sanitizedPath);
-
-            // Verify the file is within allowed directories and is a regular file
+            File credentialsFile = new File(firebaseConfig.getServiceAccountPath());
             if (!credentialsFile.exists() || !credentialsFile.isFile()) {
                 throw new IllegalStateException(
                         "Firebase service account file not found at path: " + credentialsFile.getAbsolutePath()
                                 + ". Set FIREBASE_SERVICE_ACCOUNT_PATH to a valid JSON file."
                 );
             }
-
-            // Additional security check: verify canonical path matches to prevent symlink attacks
-            String canonicalPath = credentialsFile.getCanonicalPath();
-            if (!canonicalPath.equals(credentialsFile.getAbsolutePath())) {
-                throw new IllegalStateException(
-                        "Firebase service account path contains symbolic links or relative references. "
-                                + "Use absolute paths only."
-                );
-            }
-
             try (InputStream is = new FileInputStream(credentialsFile)) {
                 return GoogleCredentials.fromStream(is);
             }
@@ -98,49 +84,5 @@ public class FirebaseAdminConfiguration {
                     exception
             );
         }
-    }
-
-    /**
-     * Security Fix: Validate and sanitize file path to prevent path traversal attacks.
-     * Blocks common path traversal patterns like ../, ..\, and null bytes.
-     */
-    private String validateAndSanitizePath(String path) {
-        if (path == null || path.trim().isEmpty()) {
-            throw new IllegalStateException("Firebase service account path cannot be empty");
-        }
-
-        String trimmedPath = path.trim();
-
-        // Check for null bytes (common in path traversal attacks)
-        if (trimmedPath.contains("\0")) {
-            throw new IllegalStateException(
-                    "Firebase service account path contains invalid null byte character"
-            );
-        }
-
-        // Check for path traversal patterns
-        if (trimmedPath.contains("../") || trimmedPath.contains("..\\")) {
-            throw new IllegalStateException(
-                    "Firebase service account path contains path traversal sequences (../). "
-                            + "Use absolute paths only."
-            );
-        }
-
-        // Check for encoded path traversal attempts
-        String lowerPath = trimmedPath.toLowerCase();
-        if (lowerPath.contains("%2e%2e") || lowerPath.contains("%252e")) {
-            throw new IllegalStateException(
-                    "Firebase service account path contains encoded path traversal sequences"
-            );
-        }
-
-        // Ensure the path ends with .json extension for additional safety
-        if (!trimmedPath.toLowerCase().endsWith(".json")) {
-            throw new IllegalStateException(
-                    "Firebase service account path must point to a .json file"
-            );
-        }
-
-        return trimmedPath;
     }
 }
