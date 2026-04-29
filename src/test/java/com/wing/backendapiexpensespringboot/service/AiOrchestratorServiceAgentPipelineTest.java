@@ -2,6 +2,7 @@ package com.wing.backendapiexpensespringboot.service;
 
 import com.wing.backendapiexpensespringboot.dto.ChatRequest;
 import com.wing.backendapiexpensespringboot.dto.ChatResponse;
+import com.wing.backendapiexpensespringboot.dto.ChatHistoryMessage;
 import com.wing.backendapiexpensespringboot.dto.agent.*;
 import com.wing.backendapiexpensespringboot.model.CategoryEntity;
 import org.junit.jupiter.api.BeforeEach;
@@ -49,7 +50,7 @@ class AiOrchestratorServiceAgentPipelineTest {
     @Test
     void chat_shouldReturnClarifyWhenValidationFails() {
         AgentDecision raw = AgentDecision.clarify("What do you mean?");
-        when(aiDecisionService.classify(anyString(), anyList(), anyString(), anyString()))
+        when(aiDecisionService.classify(anyString(), anyList(), anyList(), anyString(), anyString()))
                 .thenReturn(raw);
         when(agentDecisionValidator.validate(any()))
                 .thenReturn(new AgentValidationResult(false, List.of("SQL injection detected"), null));
@@ -70,7 +71,7 @@ class AiOrchestratorServiceAgentPipelineTest {
                 List.of(), "Adding expense", "user wants to add",
                 null, new TransactionProposal(List.of()));
 
-        when(aiDecisionService.classify(anyString(), anyList(), anyString(), anyString()))
+        when(aiDecisionService.classify(anyString(), anyList(), anyList(), anyString(), anyString()))
                 .thenReturn(decision);
         when(agentDecisionValidator.validate(any()))
                 .thenReturn(new AgentValidationResult(true, List.of(), decision));
@@ -93,7 +94,7 @@ class AiOrchestratorServiceAgentPipelineTest {
                 new AgentQueryPlan("spending_summary", null, null, null, null),
                 null);
 
-        when(aiDecisionService.classify(anyString(), anyList(), anyString(), anyString()))
+        when(aiDecisionService.classify(anyString(), anyList(), anyList(), anyString(), anyString()))
                 .thenReturn(decision);
         when(agentDecisionValidator.validate(any()))
                 .thenReturn(new AgentValidationResult(true, List.of(), decision));
@@ -121,7 +122,7 @@ class AiOrchestratorServiceAgentPipelineTest {
 
         UUID pendingId = UUID.randomUUID();
 
-        when(aiDecisionService.classify(anyString(), anyList(), anyString(), anyString()))
+        when(aiDecisionService.classify(anyString(), anyList(), anyList(), anyString(), anyString()))
                 .thenReturn(decision);
         when(agentDecisionValidator.validate(any()))
                 .thenReturn(new AgentValidationResult(true, List.of(), decision));
@@ -146,7 +147,7 @@ class AiOrchestratorServiceAgentPipelineTest {
                 List.of("amount"), "How much was it?", "missing amount",
                 null, null);
 
-        when(aiDecisionService.classify(anyString(), anyList(), anyString(), anyString()))
+        when(aiDecisionService.classify(anyString(), anyList(), anyList(), anyString(), anyString()))
                 .thenReturn(decision);
         when(agentDecisionValidator.validate(any()))
                 .thenReturn(new AgentValidationResult(true, List.of(), decision));
@@ -163,13 +164,43 @@ class AiOrchestratorServiceAgentPipelineTest {
     @Test
     void chat_shouldEnforceSafetyValidation() {
         AgentDecision decision = AgentDecision.clarify("Hello!");
-        when(aiDecisionService.classify(anyString(), anyList(), anyString(), anyString()))
+        when(aiDecisionService.classify(anyString(), anyList(), anyList(), anyString(), anyString()))
                 .thenReturn(decision);
         when(agentDecisionValidator.validate(any()))
                 .thenReturn(new AgentValidationResult(false, List.of("blocked"), null));
 
         orchestrator.chat("uid-1", chatRequest("Hello"));
         verify(safetyValidatorService).enforceNoAutoDelete("Hello");
+    }
+
+    @Test
+    void chat_shouldPassHistoryToDecisionService() {
+        AgentDecision decision = AgentDecision.clarify("Need more details.");
+        when(aiDecisionService.classify(anyString(), anyList(), anyList(), anyString(), anyString()))
+                .thenReturn(decision);
+        when(agentDecisionValidator.validate(any()))
+                .thenReturn(new AgentValidationResult(true, List.of(), decision));
+        when(agentPolicyService.evaluate(any()))
+                .thenReturn(AgentPolicyResult.allowed(AgentRiskLevel.READ_ONLY, false));
+
+        ChatRequest request = ChatRequest.builder()
+                .question("$400")
+                .history(List.of(
+                        ChatHistoryMessage.builder().role("assistant")
+                                .content("Please share the missing total amount.").build(),
+                        ChatHistoryMessage.builder().role("user")
+                                .content("Set up a new monthly budget for Dining Out.").build()))
+                .localNowIso("2026-03-15T10:00:00Z")
+                .build();
+
+        orchestrator.chat("uid-1", request);
+
+        verify(aiDecisionService).classify(
+                eq("$400"),
+                argThat(history -> history != null && history.size() == 2),
+                anyList(),
+                anyString(),
+                anyString());
     }
 
     private ChatRequest chatRequest(String question) {

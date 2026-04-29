@@ -13,6 +13,7 @@ public class OpenRouterConfig {
 
     private String apiKey;
     private String model;
+    private String fallbackModels;
     private String baseUrl;
     private int timeout;
 

@@ -30,7 +30,6 @@ public class ChatResponse {
     private Double confidence = 0.0;
 
     private String intent;
-
     @Builder.Default
     private Boolean silentAction = false;
 
@@ -50,9 +49,8 @@ public class ChatResponse {
 
     private Map<String, Double> fieldConfidences;
 
-    private String pendingActionId;
-
     private String actionType;
+    private String pendingActionId;
 
     @Builder.Default
     private List<String> missingFields = List.of();

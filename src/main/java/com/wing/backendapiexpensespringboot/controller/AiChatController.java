@@ -5,6 +5,7 @@ import com.wing.backendapiexpensespringboot.dto.ChatRequest;
 import com.wing.backendapiexpensespringboot.dto.ChatResponse;
 import com.wing.backendapiexpensespringboot.exception.AppException;
 import com.wing.backendapiexpensespringboot.security.UserPrincipal;
+import com.wing.backendapiexpensespringboot.service.AiPendingActionExecutionService;
 import com.wing.backendapiexpensespringboot.service.AiChatSessionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 public class AiChatController {
 
     private final AiChatSessionService aiChatSessionService;
+    private final AiPendingActionExecutionService aiPendingActionExecutionService;
 
     @PostMapping("/chat")
     public ResponseEntity<ChatResponse> chat(
@@ -50,6 +52,22 @@ public class AiChatController {
     @DeleteMapping("/chat/history")
     public ResponseEntity<Void> clearHistory(@AuthenticationPrincipal UserPrincipal user) {
         aiChatSessionService.clearHistory(requireFirebaseUid(user));
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
+    }
+
+    @PostMapping("/chat/actions/{actionId}/confirm")
+    public ResponseEntity<Void> confirmAction(
+            @AuthenticationPrincipal UserPrincipal user,
+            @PathVariable("actionId") java.util.UUID actionId) {
+        aiPendingActionExecutionService.confirmAndExecute(requireFirebaseUid(user), actionId);
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
+    }
+
+    @PostMapping("/chat/actions/{actionId}/cancel")
+    public ResponseEntity<Void> cancelAction(
+            @AuthenticationPrincipal UserPrincipal user,
+            @PathVariable("actionId") java.util.UUID actionId) {
+        aiPendingActionExecutionService.cancel(requireFirebaseUid(user), actionId);
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
 
