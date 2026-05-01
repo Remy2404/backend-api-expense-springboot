@@ -8,7 +8,9 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Data
 @Builder
@@ -18,6 +20,7 @@ import java.util.List;
 public class SyncPushResponseDto {
     private SyncedItems syncedItems;
     private List<FailedItem> failedItems;
+    private Map<String, String> categoryIdMap;
 
     @Data
     @Builder
@@ -55,6 +58,7 @@ public class SyncPushResponseDto {
                         .billSplit(0)
                         .build())
                 .failedItems(new ArrayList<>())
+                .categoryIdMap(new HashMap<>())
                 .build();
     }
 }

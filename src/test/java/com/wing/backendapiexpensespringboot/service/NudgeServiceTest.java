@@ -19,8 +19,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.time.YearMonth;
 import java.time.ZoneOffset;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -52,7 +52,8 @@ class NudgeServiceTest {
     @Test
     void getNudges_returnsBudgetExceededInsightWithActions() {
         String firebaseUid = "firebase-user";
-        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.SECONDS);
+        OffsetDateTime now = currentMonthAnchor();
+        String currentMonth = YearMonth.from(now).toString();
         UUID budgetId = UUID.randomUUID();
         UUID foodCategoryId = UUID.randomUUID();
 
@@ -60,7 +61,7 @@ class NudgeServiceTest {
                 firebaseUid,
                 180.0,
                 "EXPENSE",
-                now.minusDays(2),
+                now,
                 foodCategoryId,
                 "Whole Foods",
                 null
@@ -82,11 +83,11 @@ class NudgeServiceTest {
                         invocation.getArgument(1),
                         invocation.getArgument(2)
                 ));
-        when(budgetRepository.findActiveByMonthAndFirebaseUid(now.toLocalDate().withDayOfMonth(1).toString().substring(0, 7), firebaseUid))
+        when(budgetRepository.findActiveByMonthAndFirebaseUid(currentMonth, firebaseUid))
                 .thenReturn(Optional.of(BudgetEntity.builder()
                         .id(budgetId)
                         .firebaseUid(firebaseUid)
-                        .month(now.toLocalDate().withDayOfMonth(1).toString().substring(0, 7))
+                        .month(currentMonth)
                         .totalAmount(BigDecimal.valueOf(300.0))
                         .build()));
         when(categoryBudgetRepository.findByBudgetIdAndFirebaseUid(budgetId, firebaseUid)).thenReturn(List.of(
@@ -114,7 +115,7 @@ class NudgeServiceTest {
     @Test
     void getNudges_detectsRecurringSubscriptionCandidate() {
         String firebaseUid = "firebase-user";
-        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.SECONDS);
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 
         ExpenseEntity januaryCharge = expense(
                 firebaseUid,
@@ -184,6 +185,15 @@ class NudgeServiceTest {
                 .filter((expense) -> !expense.getDate().isBefore(startInclusive))
                 .filter((expense) -> expense.getDate().isBefore(endExclusive))
                 .toList();
+    }
+
+    private OffsetDateTime currentMonthAnchor() {
+        return OffsetDateTime.now(ZoneOffset.UTC)
+                .withDayOfMonth(1)
+                .withHour(12)
+                .withMinute(0)
+                .withSecond(0)
+                .withNano(0);
     }
 
     private ExpenseEntity expense(
