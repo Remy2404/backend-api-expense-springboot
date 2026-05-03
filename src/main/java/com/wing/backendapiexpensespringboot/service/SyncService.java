@@ -40,6 +40,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -59,7 +60,20 @@ public class SyncService {
     private final PlatformTransactionManager transactionManager;
     private final DatabaseRetryExecutor databaseRetryExecutor;
 
+    private final ConcurrentHashMap<String, Object> userLocks = new ConcurrentHashMap<>();
+
     public SyncPushResponseDto push(String firebaseUid, SyncPushRequestDto request) {
+        Object lock = userLocks.computeIfAbsent(firebaseUid, k -> new Object());
+        synchronized (lock) {
+            try {
+                return doPush(firebaseUid, request);
+            } finally {
+                userLocks.remove(firebaseUid);
+            }
+        }
+    }
+
+    private SyncPushResponseDto doPush(String firebaseUid, SyncPushRequestDto request) {
         SyncPushResponseDto response = SyncPushResponseDto.empty();
 
         executeInTransaction("category sync",
@@ -161,6 +175,17 @@ public class SyncService {
             if (!incomingDeleted) {
                 CategoryEntity duplicateActiveCategory = activeByKey.get(categoryKey);
                 if (duplicateActiveCategory != null && !id.equals(duplicateActiveCategory.getId())) {
+
+                    // Guard: if this category was already merged (soft-deleted in DB),
+                    // just re-send the mapping without re-running remap queries.
+                    if (existing != null && Boolean.TRUE.equals(existing.getIsDeleted())) {
+                        response.getCategoryIdMap().put(id.toString(), duplicateActiveCategory.getId().toString());
+                        response.getSyncedItems().setCategories(response.getSyncedItems().getCategories() + 1);
+                        log.info("Re-sending existing merge mapping {} → {} for user {}",
+                                id, duplicateActiveCategory.getId(), firebaseUid);
+                        continue;
+                    }
+
                     UUID canonicalId = duplicateActiveCategory.getId();
                     OffsetDateTime acceptedAt = utcNow();
                     remapCategoryReferences(firebaseUid, id, canonicalId);
@@ -177,9 +202,17 @@ public class SyncService {
                             incomingDeletedAt == null ? acceptedAt : incomingDeletedAt,
                             acceptedAt);
                     entitiesToSave.add(entity);
+
+                    // Ensure canonical category is also marked synced — prevents stale
+                    // 'pending' status from persisting on the canonical after a merge.
+                    if (!"synced".equals(duplicateActiveCategory.getSyncStatus())) {
+                        markAccepted(duplicateActiveCategory, acceptedAt);
+                        entitiesToSave.add(duplicateActiveCategory);
+                    }
+
                     response.getCategoryIdMap().put(id.toString(), canonicalId.toString());
                     response.getSyncedItems().setCategories(response.getSyncedItems().getCategories() + 1);
-                    log.warn(
+                    log.info(
                             "Merged duplicate category {} into canonical {} for user {}",
                             id,
                             canonicalId,
@@ -260,8 +293,7 @@ public class SyncService {
 
         entityManager.createNativeQuery("""
                 update expenses
-                set category_id = :toCategoryId,
-                    updated_at = now()
+                set category_id = :toCategoryId
                 where firebase_uid = :firebaseUid
                   and category_id = :fromCategoryId
                 """)
@@ -272,8 +304,7 @@ public class SyncService {
 
         entityManager.createNativeQuery("""
                 update recurring_expenses
-                set category_id = :toCategoryId,
-                    updated_at = now()
+                set category_id = :toCategoryId
                 where firebase_uid = :firebaseUid
                   and category_id = :fromCategoryId
                 """)
