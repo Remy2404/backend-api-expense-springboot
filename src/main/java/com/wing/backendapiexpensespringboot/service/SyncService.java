@@ -162,19 +162,31 @@ public class SyncService {
                 continue;
             }
 
-            CategoryEntity entity = existing == null ? new CategoryEntity() : existing;
+            String normalizedName = normalizeText(item.getName(), "Uncategorized");
+            String normalizedCategoryType = normalizeCategoryType(item.getCategoryType());
+
+            boolean seeded = false;
+            if (existing == null) {
+                seedCategoryRow(id, firebaseUid, normalizedName, item.getIcon(), item.getColor(), normalizedCategoryType);
+                existing = categoryRepository.findById(id).orElse(null);
+                seeded = true;
+            }
+
+            if (existing == null) {
+                addFailed(response, item.getId(), "category", "Failed to seed category row");
+                continue;
+            }
+
             OffsetDateTime incomingUpdatedAt = parseDateTime(item.getUpdatedAt());
-            if (existing != null && isStale(entity.getUpdatedAt(), incomingUpdatedAt)) {
+            if (!seeded && isStale(existing.getUpdatedAt(), incomingUpdatedAt)) {
                 addFailed(response, item.getId(), "category", "Stale category update");
                 continue;
             }
 
-            String normalizedName = normalizeText(item.getName(), "Uncategorized");
-            String normalizedCategoryType = normalizeCategoryType(item.getCategoryType());
             boolean incomingDeleted = Boolean.TRUE.equals(item.getIsDeleted());
 
             applyCategoryState(
-                    entity,
+                    existing,
                     id,
                     firebaseUid,
                     normalizedName,
@@ -183,7 +195,7 @@ public class SyncService {
                     incomingDeleted,
                     parseDateTime(item.getDeletedAt()),
                     utcNow());
-            entitiesToSave.add(entity);
+            entitiesToSave.add(existing);
             response.getSyncedItems().setCategories(response.getSyncedItems().getCategories() + 1);
 
         }
@@ -603,6 +615,22 @@ public class SyncService {
                 .executeUpdate();
     }
 
+    private void seedCategoryRow(UUID id, String firebaseUid, String name, String icon, String color, String categoryType) {
+        entityManager.createNativeQuery("""
+                insert into categories (id, firebase_uid, name, icon, color, category_type, sync_status)
+                values (:id, :firebaseUid, :name, :icon, :color, :categoryType, :syncStatus)
+                on conflict (id) do nothing
+                """)
+                .setParameter("id", id)
+                .setParameter("firebaseUid", firebaseUid)
+                .setParameter("name", name)
+                .setParameter("icon", icon != null ? icon : "tag")
+                .setParameter("color", color != null ? color : "#9CA3AF")
+                .setParameter("categoryType", categoryType != null ? categoryType : "EXPENSE")
+                .setParameter("syncStatus", "synced")
+                .executeUpdate();
+    }
+
     private void upsertCategoryBudgets(
             String firebaseUid,
             UUID budgetId,
@@ -684,7 +712,7 @@ public class SyncService {
                 .amount(entity.getAmount())
                 .transactionType(entity.getTransactionType())
                 .categoryId(toString(entity.getCategoryId()))
-                .date(formatOffsetDateTime(entity.getDate()))
+                .date(formatDateTime(entity.getDate()))
                 .notes(entity.getNote())
                 .merchant(entity.getMerchant())
                 .noteSummary(entity.getNoteSummary())
@@ -920,12 +948,7 @@ public class SyncService {
         return value.withOffsetSameInstant(ZoneOffset.UTC).toString();
     }
 
-    private String formatOffsetDateTime(OffsetDateTime value) {
-        if (value == null) {
-            return null;
-        }
-        return value.withOffsetSameInstant(ZoneOffset.UTC).toString();
-    }
+
 
     private String toString(UUID value) {
         return value == null ? null : value.toString();

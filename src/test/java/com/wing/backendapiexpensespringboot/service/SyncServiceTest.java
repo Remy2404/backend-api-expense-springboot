@@ -150,6 +150,16 @@ class SyncServiceTest {
         when(categoryRepository.findAllById(any())).thenReturn(List.of());
         when(categoryRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
+        CategoryEntity seededEntity = new CategoryEntity();
+        seededEntity.setId(duplicateId);
+        seededEntity.setFirebaseUid(firebaseUid);
+        when(categoryRepository.findById(duplicateId)).thenReturn(Optional.of(seededEntity));
+
+        jakarta.persistence.Query mockQuery = org.mockito.Mockito.mock(jakarta.persistence.Query.class);
+        when(entityManager.createNativeQuery(anyString())).thenReturn(mockQuery);
+        when(mockQuery.setParameter(anyString(), any())).thenReturn(mockQuery);
+        when(mockQuery.executeUpdate()).thenReturn(1);
+
         SyncPushRequestDto.CategoryItem item = new SyncPushRequestDto.CategoryItem();
         item.setId(duplicateId.toString());
         item.setName("Food");
@@ -176,7 +186,7 @@ class SyncServiceTest {
         assertEquals(0, savedCategory.getRetryCount());
         assertNull(savedCategory.getLastError());
         assertTrue(response.getCategoryIdMap().isEmpty());
-        verify(entityManager, never()).createNativeQuery(anyString());
+        verify(entityManager).createNativeQuery(anyString());
     }
 
     @Test
