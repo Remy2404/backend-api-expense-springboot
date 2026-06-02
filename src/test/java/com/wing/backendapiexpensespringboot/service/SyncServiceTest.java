@@ -33,15 +33,24 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -182,6 +191,60 @@ class SyncServiceTest {
         assertNull(tombstone.getLastError());
         assertEquals(canonicalId.toString(), response.getCategoryIdMap().get(duplicateId.toString()));
         verify(query, times(3)).executeUpdate();
+    }
+
+    @Test
+    void pushSerializesWaitingRequestsForSameUser() throws Exception {
+        String firebaseUid = "firebase-user";
+        SyncPushRequestDto request = new SyncPushRequestDto();
+        CountDownLatch firstCategorySyncStarted = new CountDownLatch(1);
+        CountDownLatch allowFirstCategorySync = new CountDownLatch(1);
+        CountDownLatch secondCategorySyncStarted = new CountDownLatch(1);
+        CountDownLatch allowSecondCategorySync = new CountDownLatch(1);
+        CountDownLatch thirdCategorySyncStarted = new CountDownLatch(1);
+        AtomicInteger categorySyncInvocationCount = new AtomicInteger();
+
+        reset(databaseRetryExecutor);
+        doAnswer(invocation -> {
+            String operation = invocation.getArgument(0);
+            Runnable action = invocation.getArgument(1);
+            if ("category sync".equals(operation)) {
+                int invocationCount = categorySyncInvocationCount.incrementAndGet();
+                if (invocationCount == 1) {
+                    firstCategorySyncStarted.countDown();
+                    allowFirstCategorySync.await(1, TimeUnit.SECONDS);
+                } else if (invocationCount == 2) {
+                    secondCategorySyncStarted.countDown();
+                    allowSecondCategorySync.await(1, TimeUnit.SECONDS);
+                } else if (invocationCount == 3) {
+                    thirdCategorySyncStarted.countDown();
+                }
+            }
+            action.run();
+            return null;
+        }).when(databaseRetryExecutor).run(anyString(), any(Runnable.class));
+
+        ExecutorService executor = Executors.newFixedThreadPool(3);
+        try {
+            Future<SyncPushResponseDto> firstPush = executor.submit(() -> syncService.push(firebaseUid, request));
+            assertTrue(firstCategorySyncStarted.await(1, TimeUnit.SECONDS));
+
+            Future<SyncPushResponseDto> secondPush = executor.submit(() -> syncService.push(firebaseUid, request));
+            allowFirstCategorySync.countDown();
+            assertTrue(secondCategorySyncStarted.await(1, TimeUnit.SECONDS));
+
+            Future<SyncPushResponseDto> thirdPush = executor.submit(() -> syncService.push(firebaseUid, request));
+            assertFalse(thirdCategorySyncStarted.await(200, TimeUnit.MILLISECONDS));
+
+            allowSecondCategorySync.countDown();
+            firstPush.get(1, TimeUnit.SECONDS);
+            secondPush.get(1, TimeUnit.SECONDS);
+            thirdPush.get(1, TimeUnit.SECONDS);
+        } finally {
+            allowFirstCategorySync.countDown();
+            allowSecondCategorySync.countDown();
+            executor.shutdownNow();
+        }
     }
 
     @Test

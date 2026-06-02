@@ -40,13 +40,14 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class SyncService {
+
+    private static final int USER_LOCK_STRIPE_COUNT = 256;
 
     private final CategoryRepository categoryRepository;
     private final ExpenseRepository expenseRepository;
@@ -60,17 +61,21 @@ public class SyncService {
     private final PlatformTransactionManager transactionManager;
     private final DatabaseRetryExecutor databaseRetryExecutor;
 
-    private final ConcurrentHashMap<String, Object> userLocks = new ConcurrentHashMap<>();
+    private final Object[] userLocks = createUserLocks();
 
     public SyncPushResponseDto push(String firebaseUid, SyncPushRequestDto request) {
-        Object lock = userLocks.computeIfAbsent(firebaseUid, k -> new Object());
+        Object lock = userLocks[Math.floorMod(firebaseUid.hashCode(), userLocks.length)];
         synchronized (lock) {
-            try {
-                return doPush(firebaseUid, request);
-            } finally {
-                userLocks.remove(firebaseUid);
-            }
+            return doPush(firebaseUid, request);
         }
+    }
+
+    private static Object[] createUserLocks() {
+        Object[] locks = new Object[USER_LOCK_STRIPE_COUNT];
+        for (int index = 0; index < locks.length; index++) {
+            locks[index] = new Object();
+        }
+        return locks;
     }
 
     private SyncPushResponseDto doPush(String firebaseUid, SyncPushRequestDto request) {
