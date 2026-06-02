@@ -21,6 +21,7 @@ public class ProfileUpsertRepository {
                 ai_enabled,
                 risk_level,
                 sync_status,
+                synced_at,
                 created_at,
                 updated_at
             )
@@ -32,7 +33,8 @@ public class ProfileUpsertRepository {
                 :claimedRole,
                 false,
                 'low',
-                'pending',
+                'synced',
+                now(),
                 now(),
                 now()
             )
@@ -43,7 +45,8 @@ public class ProfileUpsertRepository {
                 role = coalesce(nullif(profiles.role, ''), excluded.role),
                 ai_enabled = coalesce(profiles.ai_enabled, false),
                 risk_level = coalesce(nullif(profiles.risk_level, ''), 'low'),
-                sync_status = coalesce(nullif(profiles.sync_status, ''), 'pending'),
+                sync_status = 'synced',
+                synced_at = now(),
                 updated_at = case
                     when excluded.email is distinct from profiles.email
                         or excluded.display_name is distinct from profiles.display_name

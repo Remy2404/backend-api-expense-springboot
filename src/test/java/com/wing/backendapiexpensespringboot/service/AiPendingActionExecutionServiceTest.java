@@ -142,6 +142,10 @@ class AiPendingActionExecutionServiceTest {
         verify(budgetRepository).save(existingBudget);
         assertThat(existingBudget.getTotalAmount()).isNotNull();
         assertThat(existingBudget.getTotalAmount().doubleValue()).isEqualTo(400.0);
+        assertThat(existingBudget.getSyncStatus()).isEqualTo("synced");
+        assertThat(existingBudget.getSyncedAt()).isNotNull();
+        assertThat(existingBudget.getRetryCount()).isZero();
+        assertThat(existingBudget.getLastError()).isNull();
     }
 
     @Test

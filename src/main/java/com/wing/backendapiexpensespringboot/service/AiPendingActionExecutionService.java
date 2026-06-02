@@ -133,8 +133,10 @@ public class AiPendingActionExecutionService {
         budget.setIsDeleted(false);
         budget.setDeletedAt(null);
         budget.setUpdatedAt(now);
-        budget.setSyncStatus("pending");
-        budget.setSyncedAt(null);
+        budget.setSyncStatus("synced");
+        budget.setSyncedAt(now);
+        budget.setRetryCount(0);
+        budget.setLastError(null);
 
         budgetRepository.save(budget);
     }
@@ -157,7 +159,9 @@ public class AiPendingActionExecutionService {
                 .isDeleted(false)
                 .createdAt(now)
                 .updatedAt(now)
-                .syncStatus("pending")
+                .syncStatus("synced")
+                .syncedAt(now)
+                .retryCount(0)
                 .build();
 
         savingsGoalRepository.save(goal);
@@ -209,7 +213,9 @@ public class AiPendingActionExecutionService {
                 .isDeleted(false)
                 .createdAt(now)
                 .updatedAt(now)
-                .syncStatus("pending")
+                .syncStatus("synced")
+                .syncedAt(now)
+                .retryCount(0)
                 .build();
 
         recurringExpenseRepository.save(recurring);
