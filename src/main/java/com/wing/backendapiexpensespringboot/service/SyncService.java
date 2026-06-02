@@ -33,7 +33,6 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -149,12 +148,6 @@ public class SyncService {
                         .toList())
                 .stream()
                 .collect(Collectors.toMap(CategoryEntity::getId, category -> category));
-        Map<String, CategoryEntity> activeByKey = new HashMap<>();
-        for (CategoryEntity existingCategory : categoryRepository.findActiveByFirebaseUidOrderByNameAsc(firebaseUid)) {
-            activeByKey.putIfAbsent(categoryKey(existingCategory.getName(), existingCategory.getCategoryType()),
-                    existingCategory);
-        }
-
         List<CategoryEntity> entitiesToSave = new ArrayList<>();
         for (SyncPushRequestDto.CategoryItem item : items) {
             UUID id = parseUuid(item.getId());
@@ -178,57 +171,7 @@ public class SyncService {
 
             String normalizedName = normalizeText(item.getName(), "Uncategorized");
             String normalizedCategoryType = normalizeCategoryType(item.getCategoryType());
-            String categoryKey = categoryKey(normalizedName, normalizedCategoryType);
             boolean incomingDeleted = Boolean.TRUE.equals(item.getIsDeleted());
-
-            if (!incomingDeleted) {
-                CategoryEntity duplicateActiveCategory = activeByKey.get(categoryKey);
-                if (duplicateActiveCategory != null && !id.equals(duplicateActiveCategory.getId())) {
-
-                    // Guard: if this category was already merged (soft-deleted in DB),
-                    // just re-send the mapping without re-running remap queries.
-                    if (existing != null && Boolean.TRUE.equals(existing.getIsDeleted())) {
-                        response.getCategoryIdMap().put(id.toString(), duplicateActiveCategory.getId().toString());
-                        response.getSyncedItems().setCategories(response.getSyncedItems().getCategories() + 1);
-                        log.info("Re-sending existing merge mapping {} → {} for user {}",
-                                id, duplicateActiveCategory.getId(), firebaseUid);
-                        continue;
-                    }
-
-                    UUID canonicalId = duplicateActiveCategory.getId();
-                    OffsetDateTime acceptedAt = utcNow();
-                    remapCategoryReferences(firebaseUid, id, canonicalId);
-                    OffsetDateTime incomingDeletedAt = parseDateTime(item.getDeletedAt());
-
-                    applyCategoryState(
-                            entity,
-                            id,
-                            firebaseUid,
-                            normalizedName,
-                            normalizedCategoryType,
-                            item,
-                            true,
-                            incomingDeletedAt == null ? acceptedAt : incomingDeletedAt,
-                            acceptedAt);
-                    entitiesToSave.add(entity);
-
-                    // Ensure canonical category is also marked synced — prevents stale
-                    // 'pending' status from persisting on the canonical after a merge.
-                    if (!"synced".equals(duplicateActiveCategory.getSyncStatus())) {
-                        markAccepted(duplicateActiveCategory, acceptedAt);
-                        entitiesToSave.add(duplicateActiveCategory);
-                    }
-
-                    response.getCategoryIdMap().put(id.toString(), canonicalId.toString());
-                    response.getSyncedItems().setCategories(response.getSyncedItems().getCategories() + 1);
-                    log.info(
-                            "Merged duplicate category {} into canonical {} for user {}",
-                            id,
-                            canonicalId,
-                            firebaseUid);
-                    continue;
-                }
-            }
 
             applyCategoryState(
                     entity,
@@ -243,14 +186,6 @@ public class SyncService {
             entitiesToSave.add(entity);
             response.getSyncedItems().setCategories(response.getSyncedItems().getCategories() + 1);
 
-            if (incomingDeleted) {
-                CategoryEntity activeCategory = activeByKey.get(categoryKey);
-                if (activeCategory != null && id.equals(activeCategory.getId())) {
-                    activeByKey.remove(categoryKey);
-                }
-            } else {
-                activeByKey.put(categoryKey, entity);
-            }
         }
 
         if (!entitiesToSave.isEmpty()) {
@@ -288,52 +223,6 @@ public class SyncService {
         entity.setSyncedAt(acceptedAt);
         entity.setRetryCount(0);
         entity.setLastError(null);
-    }
-
-    private String categoryKey(String name, String categoryType) {
-        return normalizeText(name, "Uncategorized").toLowerCase(Locale.ROOT) + "|"
-                + normalizeCategoryType(categoryType);
-    }
-
-    private void remapCategoryReferences(String firebaseUid, UUID fromCategoryId, UUID toCategoryId) {
-        if (fromCategoryId == null || toCategoryId == null || fromCategoryId.equals(toCategoryId)) {
-            return;
-        }
-
-        entityManager.createNativeQuery("""
-                update expenses
-                set category_id = :toCategoryId
-                where firebase_uid = :firebaseUid
-                  and category_id = :fromCategoryId
-                """)
-                .setParameter("toCategoryId", toCategoryId)
-                .setParameter("firebaseUid", firebaseUid)
-                .setParameter("fromCategoryId", fromCategoryId)
-                .executeUpdate();
-
-        entityManager.createNativeQuery("""
-                update recurring_expenses
-                set category_id = :toCategoryId
-                where firebase_uid = :firebaseUid
-                  and category_id = :fromCategoryId
-                """)
-                .setParameter("toCategoryId", toCategoryId)
-                .setParameter("firebaseUid", firebaseUid)
-                .setParameter("fromCategoryId", fromCategoryId)
-                .executeUpdate();
-
-        entityManager.createNativeQuery("""
-                update category_budgets cb
-                set category_id = :toCategoryId
-                from budgets b
-                where cb.budget_id = b.id
-                  and b.firebase_uid = :firebaseUid
-                  and cb.category_id = :fromCategoryId
-                """)
-                .setParameter("toCategoryId", toCategoryId)
-                .setParameter("firebaseUid", firebaseUid)
-                .setParameter("fromCategoryId", fromCategoryId)
-                .executeUpdate();
     }
 
     private void syncExpenses(

@@ -17,7 +17,6 @@ import com.wing.backendapiexpensespringboot.repository.RecurringExpenseRepositor
 import com.wing.backendapiexpensespringboot.repository.SavingsGoalRepository;
 import com.wing.backendapiexpensespringboot.service.media.ImageKitMediaService;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.Query;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -51,7 +50,6 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -116,7 +114,6 @@ class SyncServiceTest {
         existing.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(5));
 
         when(categoryRepository.findAllById(any())).thenReturn(List.of(existing));
-        when(categoryRepository.findActiveByFirebaseUidOrderByNameAsc(firebaseUid)).thenReturn(List.of(existing));
         when(categoryRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         SyncPushRequestDto.CategoryItem item = new SyncPushRequestDto.CategoryItem();
@@ -146,23 +143,11 @@ class SyncServiceTest {
     }
 
     @Test
-    void pushDuplicateCategoryReturnsIdMapAndSavesTombstoneAsSynced() {
+    void pushDuplicateCategoryNamePersistsIndependentActiveRow() {
         String firebaseUid = "firebase-user";
-        UUID canonicalId = UUID.randomUUID();
         UUID duplicateId = UUID.randomUUID();
 
-        CategoryEntity canonical = new CategoryEntity();
-        canonical.setId(canonicalId);
-        canonical.setFirebaseUid(firebaseUid);
-        canonical.setName("Food");
-        canonical.setCategoryType("EXPENSE");
-
-        Query query = org.mockito.Mockito.mock(Query.class);
-        when(query.setParameter(anyString(), any())).thenReturn(query);
-        when(query.executeUpdate()).thenReturn(1);
-        when(entityManager.createNativeQuery(anyString())).thenReturn(query);
         when(categoryRepository.findAllById(any())).thenReturn(List.of());
-        when(categoryRepository.findActiveByFirebaseUidOrderByNameAsc(firebaseUid)).thenReturn(List.of(canonical));
         when(categoryRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         SyncPushRequestDto.CategoryItem item = new SyncPushRequestDto.CategoryItem();
@@ -182,16 +167,16 @@ class SyncServiceTest {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<CategoryEntity>> categoryCaptor = ArgumentCaptor.forClass(List.class);
         verify(categoryRepository).saveAll(categoryCaptor.capture());
-        CategoryEntity tombstone = categoryCaptor.getValue().getFirst();
-        assertEquals(duplicateId, tombstone.getId());
-        assertEquals(true, tombstone.getIsDeleted());
-        assertEquals("synced", tombstone.getSyncStatus());
-        assertNotNull(tombstone.getSyncedAt());
-        assertNotNull(tombstone.getDeletedAt());
-        assertEquals(0, tombstone.getRetryCount());
-        assertNull(tombstone.getLastError());
-        assertEquals(canonicalId.toString(), response.getCategoryIdMap().get(duplicateId.toString()));
-        verify(query, times(3)).executeUpdate();
+        CategoryEntity savedCategory = categoryCaptor.getValue().getFirst();
+        assertEquals(duplicateId, savedCategory.getId());
+        assertFalse(savedCategory.getIsDeleted());
+        assertEquals("synced", savedCategory.getSyncStatus());
+        assertNotNull(savedCategory.getSyncedAt());
+        assertNull(savedCategory.getDeletedAt());
+        assertEquals(0, savedCategory.getRetryCount());
+        assertNull(savedCategory.getLastError());
+        assertTrue(response.getCategoryIdMap().isEmpty());
+        verify(entityManager, never()).createNativeQuery(anyString());
     }
 
     @Test

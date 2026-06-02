@@ -78,19 +78,4 @@ public interface CategoryRepository extends JpaRepository<CategoryEntity, UUID> 
             @Param("categoryId") UUID categoryId
     );
 
-    @Query("""
-            SELECT c FROM CategoryEntity c
-            WHERE c.firebaseUid = :firebaseUid
-              AND COALESCE(c.isDeleted, false) = false
-              AND LOWER(c.name) = LOWER(:name)
-              AND c.categoryType = :categoryType
-              AND c.id <> :excludeId
-            ORDER BY c.updatedAt DESC NULLS LAST, c.createdAt DESC NULLS LAST
-            """)
-    List<CategoryEntity> findActiveDuplicatesByNameAndTypeExcludingId(
-            @Param("firebaseUid") String firebaseUid,
-            @Param("name") String name,
-            @Param("categoryType") String categoryType,
-            @Param("excludeId") UUID excludeId
-    );
 }

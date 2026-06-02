@@ -1054,17 +1054,6 @@ ALTER TABLE ONLY public.savings_goals
 ADD CONSTRAINT savings_goals_pkey PRIMARY KEY (id);
 
 --
--- Name: categories_user_name_unique; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE UNIQUE INDEX categories_user_name_unique ON public.categories USING btree (
-    firebase_uid,
-    name,
-    category_type
-)
-WHERE (is_deleted = false);
-
---
 -- Name: idx_ai_chat_messages_uid_created_at; Type: INDEX; Schema: public; Owner: postgres
 --
 
@@ -1450,19 +1439,6 @@ CREATE UNIQUE INDEX uq_category_budgets_budget_category ON public.category_budge
 --
 
 CREATE UNIQUE INDEX ux_ai_memories_firebase_uid_merchant_ci ON public.ai_memories USING btree (firebase_uid, lower(merchant));
-
---
--- Name: ux_categories_user_name_type_active; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE UNIQUE INDEX ux_categories_user_name_type_active ON public.categories USING btree (
-    firebase_uid,
-    lower(name),
-    category_type
-)
-WHERE (
-        COALESCE(is_deleted, false) = false
-    );
 
 --
 -- Name: ai_memories update_ai_memory_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
