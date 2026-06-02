@@ -3,6 +3,7 @@ package com.wing.backendapiexpensespringboot.service;
 import com.wing.backendapiexpensespringboot.dto.ExpenseMutationRequestDto;
 import com.wing.backendapiexpensespringboot.exception.AppException;
 import com.wing.backendapiexpensespringboot.model.ExpenseEntity;
+import com.wing.backendapiexpensespringboot.repository.CategoryRepository;
 import com.wing.backendapiexpensespringboot.repository.ExpenseRepository;
 import com.wing.backendapiexpensespringboot.service.media.ImageKitMediaService;
 import org.junit.jupiter.api.Test;
@@ -21,6 +22,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
@@ -31,6 +33,9 @@ class ExpenseServiceTest {
 
     @Mock
     private ExpenseRepository expenseRepository;
+
+    @Mock
+    private CategoryRepository categoryRepository;
 
     @Mock
     private ImageKitMediaService imageKitMediaService;
@@ -96,5 +101,22 @@ class ExpenseServiceTest {
                 expenseService.createExpense("firebase-user-1", Map.of("amount", 0.0)));
 
         assertEquals("amount must be a positive finite number", exception.getMessage());
+    }
+
+    @Test
+    void createExpenseDropsStaleCategoryReference() {
+        UUID staleCategoryId = UUID.randomUUID();
+        ExpenseMutationRequestDto request = new ExpenseMutationRequestDto();
+        request.setAmount(12.5);
+        request.setCategoryId(staleCategoryId.toString());
+
+        when(categoryRepository.findByIdAndFirebaseUid(staleCategoryId, "firebase-user-1"))
+                .thenReturn(Optional.empty());
+        when(expenseRepository.save(any(ExpenseEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        ExpenseEntity result = expenseService.createExpense("firebase-user-1", request);
+
+        assertNull(result.getCategoryId());
     }
 }

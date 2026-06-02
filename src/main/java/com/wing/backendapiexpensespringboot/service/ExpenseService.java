@@ -3,6 +3,7 @@ package com.wing.backendapiexpensespringboot.service;
 import com.wing.backendapiexpensespringboot.dto.ExpenseMutationRequestDto;
 import com.wing.backendapiexpensespringboot.exception.AppException;
 import com.wing.backendapiexpensespringboot.model.ExpenseEntity;
+import com.wing.backendapiexpensespringboot.repository.CategoryRepository;
 import com.wing.backendapiexpensespringboot.repository.ExpenseRepository;
 import com.wing.backendapiexpensespringboot.service.media.ImageKitMediaService;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,7 @@ import java.util.UUID;
 public class ExpenseService {
 
     private final ExpenseRepository expenseRepository;
+    private final CategoryRepository categoryRepository;
     private final ImageKitMediaService imageKitMediaService;
 
     public List<ExpenseEntity> getExpenses(String firebaseUid) {
@@ -92,7 +94,7 @@ public class ExpenseService {
                 .date(parseExpenseDateOrNow(request.getDate()))
                 .note(request.getNotes())
                 .noteSummary(request.getNoteSummary())
-                .categoryId(parseUuidOrNull(request.getCategoryId()))
+                .categoryId(resolveOwnedCategoryIdOrNull(firebaseUid, request.getCategoryId()))
                 .recurringExpenseId(parseUuidOrNull(request.getRecurringExpenseId()))
                 .receiptPaths(imageKitMediaService.normalizeIncomingReceiptPaths(firebaseUid, request.getReceiptPaths()))
                 .originalAmount(toBigDecimalNullable(request.getOriginalAmount()))
@@ -143,7 +145,7 @@ public class ExpenseService {
             expense.setNoteSummary(request.getNoteSummary());
         }
         if (request.getCategoryId() != null) {
-            expense.setCategoryId(parseUuidOrNull(request.getCategoryId()));
+            expense.setCategoryId(resolveOwnedCategoryIdOrNull(firebaseUid, request.getCategoryId()));
         }
         if (request.getRecurringExpenseId() != null) {
             expense.setRecurringExpenseId(parseUuidOrNull(request.getRecurringExpenseId()));
@@ -275,6 +277,20 @@ public class ExpenseService {
         } catch (IllegalArgumentException exception) {
             throw AppException.badRequest("Invalid UUID value");
         }
+    }
+
+    private UUID resolveOwnedCategoryIdOrNull(String firebaseUid, String raw) {
+        UUID categoryId = parseUuidOrNull(raw);
+        if (categoryId == null) {
+            return null;
+        }
+        if (categoryRepository.findByIdAndFirebaseUid(categoryId, firebaseUid)
+                .filter(category -> !Boolean.TRUE.equals(category.getIsDeleted()))
+                .isEmpty()) {
+            log.warn("Ignoring stale or unowned category {} for user {}", categoryId, firebaseUid);
+            return null;
+        }
+        return categoryId;
     }
 
     private ExpenseEntity findOwnedByClientId(String firebaseUid, UUID clientId) {
