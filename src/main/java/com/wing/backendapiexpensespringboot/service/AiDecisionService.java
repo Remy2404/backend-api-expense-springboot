@@ -54,6 +54,10 @@ public class AiDecisionService {
             - Never reference other users' data.
             - If you cannot determine the amount, set it to null — do not guess.
             - For transactions, always return a "transactions" array inside the proposal, even for a single item.
+            - For every transaction, set "note" to a short human-readable description of what the spending or income was for.
+            - For multiple transactions, preserve a separate meaningful "note" for each item.
+            - Use "merchant" only for a real business or shop explicitly named by the user. Do not copy the item description into "merchant".
+            - Never use vague transaction notes such as "Transaction" or "AI transaction".
             - Use the provided CURRENT_DATE for "today" references.
             - Use the provided categories list for category matching. If no match, return the user's text as-is.
 

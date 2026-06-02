@@ -93,6 +93,7 @@ class DashboardSummaryServiceTest {
         assertEquals(100.0, result.getBudgetSummary().getSpent());
         assertEquals(400.0, result.getBudgetSummary().getRemaining());
         assertEquals(1, result.getRecentTransactions().size());
+        assertEquals("Groceries", result.getRecentTransactions().get(0).getNote());
         assertEquals("Food", result.getRecentTransactions().get(0).getCategoryName());
         assertEquals(1, result.getRecentCategories().size());
         assertEquals("Food", result.getRecentCategories().get(0).getName());

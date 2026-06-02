@@ -96,7 +96,55 @@ class AiPendingActionExecutionServiceTest {
         assertThat(capturedExpense.get("amount")).isEqualTo(45.50);
         assertThat(capturedExpense.get("transactionType")).isEqualTo("EXPENSE");
         assertThat(capturedExpense.get("categoryId")).isEqualTo(groceriesCategory.getId());
+        assertThat(capturedExpense.get("note")).isEqualTo("Whole Foods");
+        assertThat(capturedExpense.get("noteSummary")).isEqualTo("Whole Foods groceries");
         assertThat(capturedExpense.get("merchant")).isEqualTo("Whole Foods");
+    }
+
+    @Test
+    void confirmAndExecutePreservesSeparateNotesWithoutInventingMerchants() {
+        UUID actionId = UUID.randomUUID();
+        TransactionProposal proposal = new TransactionProposal(List.of(
+                new TransactionProposal.TransactionItem(
+                        "expense", 2.0, "USD", "Groceries", "Coffee", null, "2026-06-02", null),
+                new TransactionProposal.TransactionItem(
+                        "expense", 1.5, "USD", "Groceries", "Coca-Cola drink", null, "2026-06-02", null)));
+
+        when(pendingAiActionService.confirm(FIREBASE_UID, actionId)).thenReturn(proposal);
+        when(categoryService.getCategoriesByType(FIREBASE_UID, CategoryType.EXPENSE))
+                .thenReturn(List.of(groceriesCategory));
+
+        service.confirmAndExecute(FIREBASE_UID, actionId);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> expenseCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(expenseService, org.mockito.Mockito.times(2))
+                .createExpense(eq(FIREBASE_UID), expenseCaptor.capture());
+        assertThat(expenseCaptor.getAllValues())
+                .extracting(expense -> expense.get("note"))
+                .containsExactly("Coffee", "Coca-Cola drink");
+        assertThat(expenseCaptor.getAllValues())
+                .extracting(expense -> expense.get("merchant"))
+                .containsOnlyNulls();
+    }
+
+    @Test
+    void confirmAndExecuteReplacesGenericNoteWithReadableCategoryFallback() {
+        UUID actionId = UUID.randomUUID();
+        TransactionProposal proposal = new TransactionProposal(List.of(
+                new TransactionProposal.TransactionItem(
+                        "expense", 3.0, "USD", "Groceries", "Transaction", "AI transaction", "2026-06-02", null)));
+
+        when(pendingAiActionService.confirm(FIREBASE_UID, actionId)).thenReturn(proposal);
+        when(categoryService.getCategoriesByType(FIREBASE_UID, CategoryType.EXPENSE))
+                .thenReturn(List.of(groceriesCategory));
+
+        service.confirmAndExecute(FIREBASE_UID, actionId);
+
+        ArgumentCaptor<Map<String, Object>> expenseCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(expenseService).createExpense(eq(FIREBASE_UID), expenseCaptor.capture());
+        assertThat(expenseCaptor.getValue().get("note")).isEqualTo("Groceries expense");
+        assertThat(expenseCaptor.getValue().get("noteSummary")).isEqualTo("Groceries expense");
     }
 
     @Test

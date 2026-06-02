@@ -98,6 +98,7 @@ public class AiPendingActionExecutionService {
                     ? CategoryType.INCOME
                     : CategoryType.EXPENSE;
             CategoryEntity category = resolveOrCreateCategory(firebaseUid, rawCategory, categoryType);
+            String readableNote = resolveTransactionNote(item.note(), rawCategory, normalizedType);
 
             Map<String, Object> expenseData = new HashMap<>();
             expenseData.put("amount", item.amount());
@@ -105,8 +106,8 @@ public class AiPendingActionExecutionService {
             expenseData.put("currency", defaultIfBlank(item.currency(), "USD"));
             expenseData.put("merchant", nullable(item.merchant()));
             expenseData.put("date", defaultIfBlank(item.date(), LocalDate.now(ZoneOffset.UTC).toString()));
-            expenseData.put("note", firstNonBlank(item.note(), item.merchant(), "Transaction"));
-            expenseData.put("noteSummary", firstNonBlank(item.noteSummary(), item.note(), item.merchant(), "AI transaction"));
+            expenseData.put("note", readableNote);
+            expenseData.put("noteSummary", firstMeaningfulNonBlank(item.noteSummary(), readableNote));
             expenseData.put("categoryId", category.getId());
 
             expenseService.createExpense(firebaseUid, expenseData);
@@ -337,5 +338,33 @@ public class AiPendingActionExecutionService {
             }
         }
         return null;
+    }
+
+    private String resolveTransactionNote(String rawNote, String category, String transactionType) {
+        String meaningfulNote = firstMeaningfulNonBlank(rawNote);
+        if (meaningfulNote != null) {
+            return meaningfulNote;
+        }
+
+        String normalizedCategory = normalizeText(category);
+        String normalizedType = "INCOME".equals(transactionType) ? "income" : "expense";
+        if (normalizedCategory != null && !"uncategorized".equalsIgnoreCase(normalizedCategory)) {
+            return normalizedCategory + " " + normalizedType;
+        }
+        return "Unnamed " + normalizedType;
+    }
+
+    private String firstMeaningfulNonBlank(String... values) {
+        for (String value : values) {
+            String normalized = normalizeText(value);
+            if (normalized != null && !isGenericTransactionLabel(normalized)) {
+                return normalized;
+            }
+        }
+        return null;
+    }
+
+    private boolean isGenericTransactionLabel(String value) {
+        return "transaction".equalsIgnoreCase(value) || "ai transaction".equalsIgnoreCase(value);
     }
 }
