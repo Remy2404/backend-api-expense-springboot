@@ -7,7 +7,6 @@ import com.wing.backendapiexpensespringboot.dto.*;
 import com.wing.backendapiexpensespringboot.dto.agent.*;
 import com.wing.backendapiexpensespringboot.exception.AppException;
 import com.wing.backendapiexpensespringboot.model.CategoryEntity;
-import com.wing.backendapiexpensespringboot.model.CategoryType;
 import com.wing.backendapiexpensespringboot.model.ExpenseEntity;
 import com.wing.backendapiexpensespringboot.model.MemoryEntity;
 import lombok.RequiredArgsConstructor;

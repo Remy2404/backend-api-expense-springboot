@@ -41,14 +41,18 @@ public class CategoryService {
             String color,
             CategoryType categoryType
     ) {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         CategoryEntity category = CategoryEntity.builder()
                 .firebaseUid(firebaseUid)
                 .name(name)
                 .icon(icon)
                 .color(color)
                 .categoryType(categoryType.name())
-                .createdAt(OffsetDateTime.now(ZoneOffset.UTC))
-                .updatedAt(OffsetDateTime.now(ZoneOffset.UTC))
+                .syncStatus("synced")
+                .syncedAt(now)
+                .retryCount(0)
+                .createdAt(now)
+                .updatedAt(now)
                 .build();
         return categoryRepository.save(category);
     }

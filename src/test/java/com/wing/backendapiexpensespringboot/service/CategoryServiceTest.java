@@ -4,6 +4,7 @@ import com.wing.backendapiexpensespringboot.model.CategoryEntity;
 import com.wing.backendapiexpensespringboot.repository.CategoryRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -11,6 +12,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -22,6 +25,26 @@ class CategoryServiceTest {
 
     @InjectMocks
     private CategoryService categoryService;
+
+    @Test
+    void createCategoryMarksCommittedCloudRowSynced() {
+        when(categoryRepository.save(any(CategoryEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CategoryEntity result = categoryService.createCategory(
+                "firebase-user-1",
+                "Food",
+                "fork",
+                "#123456",
+                com.wing.backendapiexpensespringboot.model.CategoryType.EXPENSE);
+
+        ArgumentCaptor<CategoryEntity> captor = ArgumentCaptor.forClass(CategoryEntity.class);
+        verify(categoryRepository).save(captor.capture());
+        assertEquals("synced", result.getSyncStatus());
+        assertNotNull(result.getSyncedAt());
+        assertEquals(0, result.getRetryCount());
+        assertEquals(result, captor.getValue());
+    }
 
     @Test
     void getCategoriesReturnsOnlyActiveCategories() {

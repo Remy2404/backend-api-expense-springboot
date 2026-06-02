@@ -6,6 +6,7 @@ import com.wing.backendapiexpensespringboot.repository.ExpenseRepository;
 import com.wing.backendapiexpensespringboot.service.media.ImageKitMediaService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -13,11 +14,14 @@ import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -31,6 +35,24 @@ class ExpenseServiceTest {
 
     @InjectMocks
     private ExpenseService expenseService;
+
+    @Test
+    void createExpenseMarksCommittedCloudRowSynced() {
+        when(expenseRepository.save(any(ExpenseEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        ExpenseEntity result = expenseService.createExpense("firebase-user-1", Map.of(
+                "amount", 12.5,
+                "transactionType", "EXPENSE",
+                "date", "2026-03-03"));
+
+        ArgumentCaptor<ExpenseEntity> captor = ArgumentCaptor.forClass(ExpenseEntity.class);
+        verify(expenseRepository).save(captor.capture());
+        assertEquals("synced", result.getSyncStatus());
+        assertNotNull(result.getSyncedAt());
+        assertEquals(0, result.getRetryCount());
+        assertEquals(result, captor.getValue());
+    }
 
     @Test
     void createExpenseReturnsExistingRowWhenConcurrentClientIdRaceOccurs() {

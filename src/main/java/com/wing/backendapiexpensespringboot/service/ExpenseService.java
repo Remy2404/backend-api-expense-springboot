@@ -67,6 +67,7 @@ public class ExpenseService {
                 .updatedAt(now)
                 .build();
 
+        markCloudSynced(expense, now);
         return expenseRepository.save(expense);
     }
 
@@ -102,6 +103,7 @@ public class ExpenseService {
                 .updatedAt(createdAt)
                 .build();
 
+        markCloudSynced(expense, nowUtc());
         try {
             return expenseRepository.save(expense);
         } catch (ObjectOptimisticLockingFailureException | DataIntegrityViolationException ex) {
@@ -159,7 +161,9 @@ public class ExpenseService {
             expense.setRateSource(request.getRateSource());
         }
 
-        expense.setUpdatedAt(nowUtc());
+        OffsetDateTime now = nowUtc();
+        expense.setUpdatedAt(now);
+        markCloudSynced(expense, now);
         return expenseRepository.save(expense);
     }
 
@@ -170,6 +174,7 @@ public class ExpenseService {
         expense.setIsDeleted(true);
         expense.setDeletedAt(now);
         expense.setUpdatedAt(now);
+        markCloudSynced(expense, now);
         return expenseRepository.save(expense);
     }
 
@@ -184,7 +189,9 @@ public class ExpenseService {
         expense.setAiCategoryId(aiCategoryId);
         expense.setAiConfidence(aiConfidence);
         expense.setAiSource(aiSource);
-        expense.setUpdatedAt(nowUtc());
+        OffsetDateTime now = nowUtc();
+        expense.setUpdatedAt(now);
+        markCloudSynced(expense, now);
         return expenseRepository.save(expense);
     }
 
@@ -279,6 +286,13 @@ public class ExpenseService {
             throw AppException.unauthorized("Expense does not belong to current user");
         }
         return existing;
+    }
+
+    private void markCloudSynced(ExpenseEntity expense, OffsetDateTime syncedAt) {
+        expense.setSyncStatus("synced");
+        expense.setSyncedAt(syncedAt);
+        expense.setRetryCount(0);
+        expense.setLastError(null);
     }
 
     private String normalizeTransactionType(String raw) {

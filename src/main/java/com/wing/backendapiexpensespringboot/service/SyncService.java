@@ -40,6 +40,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -59,7 +60,20 @@ public class SyncService {
     private final PlatformTransactionManager transactionManager;
     private final DatabaseRetryExecutor databaseRetryExecutor;
 
+    private final ConcurrentHashMap<String, Object> userLocks = new ConcurrentHashMap<>();
+
     public SyncPushResponseDto push(String firebaseUid, SyncPushRequestDto request) {
+        Object lock = userLocks.computeIfAbsent(firebaseUid, k -> new Object());
+        synchronized (lock) {
+            try {
+                return doPush(firebaseUid, request);
+            } finally {
+                userLocks.remove(firebaseUid);
+            }
+        }
+    }
+
+    private SyncPushResponseDto doPush(String firebaseUid, SyncPushRequestDto request) {
         SyncPushResponseDto response = SyncPushResponseDto.empty();
 
         executeInTransaction("category sync",
@@ -161,7 +175,19 @@ public class SyncService {
             if (!incomingDeleted) {
                 CategoryEntity duplicateActiveCategory = activeByKey.get(categoryKey);
                 if (duplicateActiveCategory != null && !id.equals(duplicateActiveCategory.getId())) {
+
+                    // Guard: if this category was already merged (soft-deleted in DB),
+                    // just re-send the mapping without re-running remap queries.
+                    if (existing != null && Boolean.TRUE.equals(existing.getIsDeleted())) {
+                        response.getCategoryIdMap().put(id.toString(), duplicateActiveCategory.getId().toString());
+                        response.getSyncedItems().setCategories(response.getSyncedItems().getCategories() + 1);
+                        log.info("Re-sending existing merge mapping {} → {} for user {}",
+                                id, duplicateActiveCategory.getId(), firebaseUid);
+                        continue;
+                    }
+
                     UUID canonicalId = duplicateActiveCategory.getId();
+                    OffsetDateTime acceptedAt = utcNow();
                     remapCategoryReferences(firebaseUid, id, canonicalId);
                     OffsetDateTime incomingDeletedAt = parseDateTime(item.getDeletedAt());
 
@@ -173,10 +199,20 @@ public class SyncService {
                             normalizedCategoryType,
                             item,
                             true,
-                            incomingDeletedAt == null ? resolveUpdatedAt(item.getUpdatedAt()) : incomingDeletedAt);
+                            incomingDeletedAt == null ? acceptedAt : incomingDeletedAt,
+                            acceptedAt);
                     entitiesToSave.add(entity);
+
+                    // Ensure canonical category is also marked synced — prevents stale
+                    // 'pending' status from persisting on the canonical after a merge.
+                    if (!"synced".equals(duplicateActiveCategory.getSyncStatus())) {
+                        markAccepted(duplicateActiveCategory, acceptedAt);
+                        entitiesToSave.add(duplicateActiveCategory);
+                    }
+
+                    response.getCategoryIdMap().put(id.toString(), canonicalId.toString());
                     response.getSyncedItems().setCategories(response.getSyncedItems().getCategories() + 1);
-                    log.warn(
+                    log.info(
                             "Merged duplicate category {} into canonical {} for user {}",
                             id,
                             canonicalId,
@@ -193,7 +229,8 @@ public class SyncService {
                     normalizedCategoryType,
                     item,
                     incomingDeleted,
-                    parseDateTime(item.getDeletedAt()));
+                    parseDateTime(item.getDeletedAt()),
+                    utcNow());
             entitiesToSave.add(entity);
             response.getSyncedItems().setCategories(response.getSyncedItems().getCategories() + 1);
 
@@ -220,7 +257,8 @@ public class SyncService {
             String normalizedCategoryType,
             SyncPushRequestDto.CategoryItem item,
             boolean incomingDeleted,
-            OffsetDateTime deletedAt) {
+            OffsetDateTime deletedAt,
+            OffsetDateTime acceptedAt) {
         entity.setId(id);
         entity.setFirebaseUid(firebaseUid);
         entity.setName(normalizedName);
@@ -231,12 +269,16 @@ public class SyncService {
         entity.setSortOrder(item.getSortOrder());
         entity.setIsDeleted(incomingDeleted);
         entity.setDeletedAt(deletedAt);
-        entity.setRetryCount(item.getRetryCount());
-        entity.setLastError(item.getLastError());
         entity.setCreatedAt(resolveCreatedAt(entity.getCreatedAt(), item.getCreatedAt()));
         entity.setUpdatedAt(resolveUpdatedAt(item.getUpdatedAt()));
-        entity.setSyncedAt(resolveSyncedAt(item.getSyncedAt()));
-        entity.setSyncStatus(resolveSyncStatus(item.getSyncedAt()));
+        markAccepted(entity, acceptedAt);
+    }
+
+    private void markAccepted(CategoryEntity entity, OffsetDateTime acceptedAt) {
+        entity.setSyncStatus("synced");
+        entity.setSyncedAt(acceptedAt);
+        entity.setRetryCount(0);
+        entity.setLastError(null);
     }
 
     private String categoryKey(String name, String categoryType) {
@@ -251,8 +293,7 @@ public class SyncService {
 
         entityManager.createNativeQuery("""
                 update expenses
-                set category_id = :toCategoryId,
-                    updated_at = now()
+                set category_id = :toCategoryId
                 where firebase_uid = :firebaseUid
                   and category_id = :fromCategoryId
                 """)
@@ -263,8 +304,7 @@ public class SyncService {
 
         entityManager.createNativeQuery("""
                 update recurring_expenses
-                set category_id = :toCategoryId,
-                    updated_at = now()
+                set category_id = :toCategoryId
                 where firebase_uid = :firebaseUid
                   and category_id = :fromCategoryId
                 """)
@@ -348,16 +388,20 @@ public class SyncService {
             entity.setRateSource(item.getRateSource());
             entity.setIsDeleted(Boolean.TRUE.equals(item.getIsDeleted()));
             entity.setDeletedAt(parseDateTime(item.getDeletedAt()));
-            entity.setRetryCount(item.getRetryCount());
-            entity.setLastError(item.getLastError());
             entity.setCreatedAt(resolveCreatedAt(entity.getCreatedAt(), item.getCreatedAt()));
             entity.setUpdatedAt(resolveUpdatedAt(item.getUpdatedAt()));
-            entity.setSyncedAt(resolveSyncedAt(item.getSyncedAt()));
-            entity.setSyncStatus(resolveSyncStatus(item.getSyncedAt()));
+            markAccepted(entity, utcNow());
 
             expenseRepository.save(entity);
             response.getSyncedItems().setExpenses(response.getSyncedItems().getExpenses() + 1);
         }
+    }
+
+    private void markAccepted(ExpenseEntity entity, OffsetDateTime acceptedAt) {
+        entity.setSyncStatus("synced");
+        entity.setSyncedAt(acceptedAt);
+        entity.setRetryCount(0);
+        entity.setLastError(null);
     }
 
     private void syncBudgets(
@@ -402,12 +446,9 @@ public class SyncService {
             entity.setTotalAmount(toBigDecimal(item.getTotalAmount()));
             entity.setIsDeleted(Boolean.TRUE.equals(item.getIsDeleted()));
             entity.setDeletedAt(parseDateTime(item.getDeletedAt()));
-            entity.setRetryCount(item.getRetryCount());
-            entity.setLastError(item.getLastError());
             entity.setCreatedAt(resolveCreatedAt(entity.getCreatedAt(), item.getCreatedAt()));
             entity.setUpdatedAt(resolveUpdatedAt(item.getUpdatedAt()));
-            entity.setSyncedAt(resolveSyncedAt(item.getSyncedAt()));
-            entity.setSyncStatus(resolveSyncStatus(item.getSyncedAt()));
+            markAccepted(entity, utcNow());
 
             budgetRepository.save(entity);
             categoryBudgetRepository.deleteByBudgetId(entity.getId());
@@ -415,6 +456,13 @@ public class SyncService {
 
             response.getSyncedItems().setBudgets(response.getSyncedItems().getBudgets() + 1);
         }
+    }
+
+    private void markAccepted(BudgetEntity entity, OffsetDateTime acceptedAt) {
+        entity.setSyncStatus("synced");
+        entity.setSyncedAt(acceptedAt);
+        entity.setRetryCount(0);
+        entity.setLastError(null);
     }
 
     private void syncGoals(
@@ -500,17 +548,21 @@ public class SyncService {
         entity.setIsArchived(Boolean.TRUE.equals(item.getIsArchived()));
         entity.setIsDeleted(Boolean.TRUE.equals(item.getIsDeleted()));
         entity.setDeletedAt(parseDateTime(item.getDeletedAt()));
-        entity.setRetryCount(item.getRetryCount());
-        entity.setLastError(item.getLastError());
         entity.setCreatedAt(resolveCreatedAt(entity.getCreatedAt(), item.getCreatedAt()));
         entity.setUpdatedAt(resolveUpdatedAt(item.getUpdatedAt()));
-        entity.setSyncedAt(resolveSyncedAt(item.getSyncedAt()));
-        entity.setSyncStatus(resolveSyncStatus(item.getSyncedAt()));
+        markAccepted(entity, utcNow());
 
         savingsGoalRepository.save(entity);
         mergeGoalTransactions(entity.getId(), item.getTransactions());
 
         response.getSyncedItems().setGoals(response.getSyncedItems().getGoals() + 1);
+    }
+
+    private void markAccepted(SavingsGoalEntity entity, OffsetDateTime acceptedAt) {
+        entity.setSyncStatus("synced");
+        entity.setSyncedAt(acceptedAt);
+        entity.setRetryCount(0);
+        entity.setLastError(null);
     }
 
     private void syncRecurring(
@@ -572,16 +624,20 @@ public class SyncService {
                     : item.getNotificationDaysBefore());
             entity.setIsDeleted(Boolean.TRUE.equals(item.getIsDeleted()));
             entity.setDeletedAt(parseDateTime(item.getDeletedAt()));
-            entity.setRetryCount(item.getRetryCount());
-            entity.setLastError(item.getLastError());
             entity.setCreatedAt(resolveCreatedAt(entity.getCreatedAt(), item.getCreatedAt()));
             entity.setUpdatedAt(resolveUpdatedAt(item.getUpdatedAt()));
-            entity.setSyncedAt(resolveSyncedAt(item.getSyncedAt()));
-            entity.setSyncStatus(resolveSyncStatus(item.getSyncedAt()));
+            markAccepted(entity, utcNow());
 
             recurringExpenseRepository.save(entity);
             response.getSyncedItems().setRecurring(response.getSyncedItems().getRecurring() + 1);
         }
+    }
+
+    private void markAccepted(RecurringExpenseEntity entity, OffsetDateTime acceptedAt) {
+        entity.setSyncStatus("synced");
+        entity.setSyncedAt(acceptedAt);
+        entity.setRetryCount(0);
+        entity.setLastError(null);
     }
 
     private void seedExpenseRow(UUID id, String firebaseUid) {
@@ -930,14 +986,6 @@ public class SyncService {
     private OffsetDateTime resolveUpdatedAt(String incoming) {
         OffsetDateTime parsed = parseDateTime(incoming);
         return parsed == null ? utcNow() : parsed;
-    }
-
-    private OffsetDateTime resolveSyncedAt(String incoming) {
-        return parseDateTime(incoming);
-    }
-
-    private String resolveSyncStatus(String incomingSyncedAt) {
-        return resolveSyncedAt(incomingSyncedAt) == null ? "pending" : "synced";
     }
 
     private OffsetDateTime parseDateTime(String raw) {
