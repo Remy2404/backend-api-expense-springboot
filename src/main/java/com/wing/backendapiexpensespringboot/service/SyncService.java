@@ -136,16 +136,19 @@ public class SyncService {
             String firebaseUid,
             List<SyncPushRequestDto.CategoryItem> items,
             SyncPushResponseDto response) {
-        Map<UUID, CategoryEntity> existingById = items.isEmpty()
-                ? Map.of()
-                : categoryRepository.findAllById(
-                        items.stream()
-                                .map(SyncPushRequestDto.CategoryItem::getId)
-                                .map(this::parseUuid)
-                                .filter(java.util.Objects::nonNull)
-                                .toList())
-                        .stream()
-                        .collect(Collectors.toMap(CategoryEntity::getId, category -> category));
+        if (items.isEmpty()) {
+            return;
+        }
+
+        categoryRepository.acquireUserSyncLock(firebaseUid);
+        Map<UUID, CategoryEntity> existingById = categoryRepository.findAllById(
+                items.stream()
+                        .map(SyncPushRequestDto.CategoryItem::getId)
+                        .map(this::parseUuid)
+                        .filter(java.util.Objects::nonNull)
+                        .toList())
+                .stream()
+                .collect(Collectors.toMap(CategoryEntity::getId, category -> category));
         Map<String, CategoryEntity> activeByKey = new HashMap<>();
         for (CategoryEntity existingCategory : categoryRepository.findActiveByFirebaseUidOrderByNameAsc(firebaseUid)) {
             activeByKey.putIfAbsent(categoryKey(existingCategory.getName(), existingCategory.getCategoryType()),

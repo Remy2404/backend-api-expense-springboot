@@ -133,6 +133,7 @@ class SyncServiceTest {
 
         SyncPushResponseDto response = syncService.push(firebaseUid, request);
 
+        verify(categoryRepository).acquireUserSyncLock(firebaseUid);
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<CategoryEntity>> categoryCaptor = ArgumentCaptor.forClass(List.class);
         verify(categoryRepository).saveAll(categoryCaptor.capture());

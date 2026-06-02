@@ -15,6 +15,9 @@ import java.util.UUID;
 @Repository
 public interface CategoryRepository extends JpaRepository<CategoryEntity, UUID> {
 
+    @Query(value = "SELECT 1 FROM pg_advisory_xact_lock(hashtext(:firebaseUid))", nativeQuery = true)
+    Integer acquireUserSyncLock(@Param("firebaseUid") String firebaseUid);
+
     List<CategoryEntity> findByFirebaseUidOrderByNameAsc(String firebaseUid);
 
     @Query("""
