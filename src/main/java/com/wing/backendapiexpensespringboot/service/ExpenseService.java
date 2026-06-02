@@ -55,7 +55,7 @@ public class ExpenseService {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         ExpenseEntity expense = ExpenseEntity.builder()
                 .firebaseUid(firebaseUid)
-                .amount((Double) data.get("amount"))
+                .amount(requireAmount((Double) data.get("amount")))
                 .transactionType((String) data.getOrDefault("transactionType", "EXPENSE"))
                 .currency((String) data.getOrDefault("currency", "USD"))
                 .merchant((String) data.get("merchant"))
@@ -122,7 +122,7 @@ public class ExpenseService {
     public ExpenseEntity updateExpense(String firebaseUid, UUID expenseId, ExpenseMutationRequestDto request) {
         ExpenseEntity expense = getExpenseById(firebaseUid, expenseId);
         if (request.getAmount() != null) {
-            expense.setAmount(request.getAmount());
+            expense.setAmount(requireAmount(request.getAmount()));
         }
         if (request.getTransactionType() != null) {
             expense.setTransactionType(normalizeTransactionType(request.getTransactionType()));
@@ -310,8 +310,8 @@ public class ExpenseService {
     }
 
     private Double requireAmount(Double amount) {
-        if (amount == null) {
-            throw AppException.badRequest("amount is required");
+        if (amount == null || !Double.isFinite(amount) || amount <= 0) {
+            throw AppException.badRequest("amount must be a positive finite number");
         }
         return amount;
     }

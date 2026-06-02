@@ -287,6 +287,24 @@ class SyncServiceTest {
     }
 
     @Test
+    void pushExpenseRejectsNonPositiveAmountBeforePersistence() {
+        SyncPushRequestDto.ExpenseItem item = new SyncPushRequestDto.ExpenseItem();
+        item.setId(UUID.randomUUID().toString());
+        item.setAmount(0.0);
+
+        SyncPushRequestDto request = new SyncPushRequestDto();
+        request.setExpenses(List.of(item));
+
+        SyncPushResponseDto response = syncService.push("firebase-user", request);
+
+        assertEquals(0, response.getSyncedItems().getExpenses());
+        assertEquals(1, response.getFailedItems().size());
+        assertEquals("Expense amount must be a positive finite number", response.getFailedItems().get(0).getError());
+        verify(expenseRepository, never()).findById(any());
+        verify(expenseRepository, never()).save(any());
+    }
+
+    @Test
     void pushBudgetUpsertsExistingMonthForSameUser() {
         String firebaseUid = "firebase-user";
         UUID incomingId = UUID.randomUUID();

@@ -1,6 +1,7 @@
 package com.wing.backendapiexpensespringboot.service;
 
 import com.wing.backendapiexpensespringboot.dto.ExpenseMutationRequestDto;
+import com.wing.backendapiexpensespringboot.exception.AppException;
 import com.wing.backendapiexpensespringboot.model.ExpenseEntity;
 import com.wing.backendapiexpensespringboot.repository.ExpenseRepository;
 import com.wing.backendapiexpensespringboot.service.media.ImageKitMediaService;
@@ -20,6 +21,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -86,5 +88,13 @@ class ExpenseServiceTest {
         assertEquals(clientId, result.getId());
         assertEquals(firebaseUid, result.getFirebaseUid());
         assertEquals(12.5, result.getAmount());
+    }
+
+    @Test
+    void createExpenseRejectsNonPositiveAmount() {
+        AppException exception = assertThrows(AppException.class, () ->
+                expenseService.createExpense("firebase-user-1", Map.of("amount", 0.0)));
+
+        assertEquals("amount must be a positive finite number", exception.getMessage());
     }
 }

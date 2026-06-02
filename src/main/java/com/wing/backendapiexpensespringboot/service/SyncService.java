@@ -342,6 +342,10 @@ public class SyncService {
                 addFailed(response, item.getId(), "expense", "Invalid expense id");
                 continue;
             }
+            if (!isPositiveFinite(item.getAmount())) {
+                addFailed(response, item.getId(), "expense", "Expense amount must be a positive finite number");
+                continue;
+            }
 
             Optional<ExpenseEntity> existingOpt = expenseRepository.findById(id);
             if (existingOpt.isPresent() && !firebaseUid.equals(existingOpt.get().getFirebaseUid())) {
@@ -360,7 +364,7 @@ public class SyncService {
 
             boolean seeded = false;
             if (existingOpt.isEmpty()) {
-                seedExpenseRow(id, firebaseUid);
+                seedExpenseRow(id, firebaseUid, item.getAmount());
                 existingOpt = expenseRepository.findById(id);
                 seeded = true;
             }
@@ -373,7 +377,7 @@ public class SyncService {
 
             entity.setId(id);
             entity.setFirebaseUid(firebaseUid);
-            entity.setAmount(item.getAmount() == null ? 0.0 : item.getAmount());
+            entity.setAmount(item.getAmount());
             entity.setTransactionType(normalizeExpenseType(item.getTransactionType()));
             entity.setCategoryId(categoryId);
             entity.setDate(resolveExpenseDate(item.getDate()));
@@ -645,7 +649,7 @@ public class SyncService {
         entity.setLastError(null);
     }
 
-    private void seedExpenseRow(UUID id, String firebaseUid) {
+    private void seedExpenseRow(UUID id, String firebaseUid, Double amount) {
         entityManager.createNativeQuery("""
                 insert into expenses (id, firebase_uid, amount, date, transaction_type)
                 values (:id, :firebaseUid, :amount, :dateValue, :transactionType)
@@ -653,10 +657,14 @@ public class SyncService {
                 """)
                 .setParameter("id", id)
                 .setParameter("firebaseUid", firebaseUid)
-                .setParameter("amount", BigDecimal.ZERO)
+                .setParameter("amount", BigDecimal.valueOf(amount))
                 .setParameter("dateValue", utcNow())
                 .setParameter("transactionType", "EXPENSE")
                 .executeUpdate();
+    }
+
+    private boolean isPositiveFinite(Double amount) {
+        return amount != null && Double.isFinite(amount) && amount > 0;
     }
 
     private void seedBudgetRow(UUID id, String firebaseUid) {
