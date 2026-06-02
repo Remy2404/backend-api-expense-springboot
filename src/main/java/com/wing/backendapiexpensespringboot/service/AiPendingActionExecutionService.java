@@ -365,6 +365,9 @@ public class AiPendingActionExecutionService {
     }
 
     private boolean isGenericTransactionLabel(String value) {
-        return "transaction".equalsIgnoreCase(value) || "ai transaction".equalsIgnoreCase(value);
+        return "transaction".equalsIgnoreCase(value)
+                || "ai transaction".equalsIgnoreCase(value)
+                || "null".equalsIgnoreCase(value)
+                || "undefined".equalsIgnoreCase(value);
     }
 }

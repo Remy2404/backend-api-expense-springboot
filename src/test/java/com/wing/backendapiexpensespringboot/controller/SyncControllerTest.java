@@ -22,6 +22,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -88,6 +89,27 @@ class SyncControllerTest {
 
                 verify(userOnboardingService).ensureProfileReady(any(UserPrincipal.class));
                 verify(syncService).push(eq(FIREBASE_UID), any(SyncPushRequestDto.class));
+        }
+
+        @Test
+        void pushRelaysBillSplitDirtyInvalidation() throws Exception {
+                when(syncService.push(eq(FIREBASE_UID), any(SyncPushRequestDto.class)))
+                                .thenReturn(SyncPushResponseDto.empty());
+
+                mockMvc.perform(post("/sync/push")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                                {
+                                                  "bill_split_dirty": true
+                                                }
+                                                """)
+                                .with(authenticatedUser()))
+                                .andExpect(status().isOk());
+
+                verify(realtimeRelayService).publishSyncInvalidation(
+                                FIREBASE_UID,
+                                List.of("bill_split"),
+                                "sync_push");
         }
 
         @Test

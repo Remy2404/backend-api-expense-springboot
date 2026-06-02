@@ -287,6 +287,16 @@ class SyncServiceTest {
     }
 
     @Test
+    void pushAcknowledgesBillSplitDirtyNotification() {
+        SyncPushRequestDto request = new SyncPushRequestDto();
+        request.setBillSplitDirty(true);
+
+        SyncPushResponseDto response = syncService.push("firebase-user", request);
+
+        assertEquals(1, response.getSyncedItems().getBillSplit());
+    }
+
+    @Test
     void pushExpenseRejectsNonPositiveAmountBeforePersistence() {
         SyncPushRequestDto.ExpenseItem item = new SyncPushRequestDto.ExpenseItem();
         item.setId(UUID.randomUUID().toString());

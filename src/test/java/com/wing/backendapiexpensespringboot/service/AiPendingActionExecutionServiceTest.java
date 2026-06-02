@@ -148,6 +148,25 @@ class AiPendingActionExecutionServiceTest {
     }
 
     @Test
+    void confirmAndExecuteReplacesSerializedNullNoteWithReadableCategoryFallback() {
+        UUID actionId = UUID.randomUUID();
+        TransactionProposal proposal = new TransactionProposal(List.of(
+                new TransactionProposal.TransactionItem(
+                        "expense", 3.0, "USD", "Groceries", "Null", "undefined", "2026-06-02", null)));
+
+        when(pendingAiActionService.confirm(FIREBASE_UID, actionId)).thenReturn(proposal);
+        when(categoryService.getCategoriesByType(FIREBASE_UID, CategoryType.EXPENSE))
+                .thenReturn(List.of(groceriesCategory));
+
+        service.confirmAndExecute(FIREBASE_UID, actionId);
+
+        ArgumentCaptor<Map<String, Object>> expenseCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(expenseService).createExpense(eq(FIREBASE_UID), expenseCaptor.capture());
+        assertThat(expenseCaptor.getValue().get("note")).isEqualTo("Groceries expense");
+        assertThat(expenseCaptor.getValue().get("noteSummary")).isEqualTo("Groceries expense");
+    }
+
+    @Test
     void confirmAndExecuteRejectsTransactionWithoutAmount() {
         UUID actionId = UUID.randomUUID();
         TransactionProposal proposal = new TransactionProposal(List.of(

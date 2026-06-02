@@ -90,8 +90,9 @@ public class SyncService {
         executeInTransaction("recurring sync",
                 () -> syncRecurring(firebaseUid, safeList(request.getRecurring()), response));
 
-        // Bill-split sync is intentionally backend-owned and not processed here yet.
-        response.getSyncedItems().setBillSplit(0);
+        // Mobile writes the split graph directly to Supabase. Acknowledge its dirty
+        // signal so the controller can relay cache invalidation to web clients.
+        response.getSyncedItems().setBillSplit(request.isBillSplitDirty() ? 1 : 0);
         return response;
     }
 

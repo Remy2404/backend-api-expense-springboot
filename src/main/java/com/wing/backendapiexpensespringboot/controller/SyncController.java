@@ -60,6 +60,9 @@ public class SyncController {
         if (hasItems(safeRequest.getRecurring())) {
             changedEntities.add("recurring");
         }
+        if (safeRequest.isBillSplitDirty()) {
+            changedEntities.add("bill_split");
+        }
 
         realtimeRelayService.publishSyncInvalidation(firebaseUid, changedEntities, "sync_push");
         return ResponseEntity.ok(response);
